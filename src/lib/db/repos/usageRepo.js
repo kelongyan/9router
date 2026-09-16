@@ -343,6 +343,29 @@ function loadDaysInRange(adapter, maxDays) {
   return adapter.all(`SELECT dateKey, data FROM usageDaily WHERE dateKey >= ?`, [cutoffKey]);
 }
 
+/**
+ * Per-day usage for the activity heatmap plus all-time totals.
+ * Only reads the day-level aggregates (no byModel/byAccount parsing),
+ * so this is much lighter than getUsageStats.
+ */
+export async function getHeatmapData() {
+  const db = await getAdapter();
+  const rows = db.all(`SELECT dateKey, data FROM usageDaily`);
+  const days = {};
+  let totalTokens = 0;
+  let peakTokens = 0;
+  for (const r of rows) {
+    const day = parseJson(r.data, null);
+    if (!day) continue;
+    const tokens = (day.promptTokens || 0) + (day.completionTokens || 0);
+    if (tokens <= 0 && !(day.requests > 0)) continue;
+    days[r.dateKey] = { tokens, requests: day.requests || 0, cost: day.cost || 0 };
+    totalTokens += tokens;
+    if (tokens > peakTokens) peakTokens = tokens;
+  }
+  return { days, stats: { totalTokens, peakTokens } };
+}
+
 export async function getUsageStats(period = "all") {
   const db = await getAdapter();
 

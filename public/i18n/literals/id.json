@@ -1389,5 +1389,22 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Pemberitahuan Risiko: Penyedia ini menggunakan sesi langganan/OAuth yang tidak dilisensikan secara resmi untuk penggunaan proxy/router. Akun mungkin dibatasi atau diblokir. Gunakan dengan risiko Anda sendiri.",
   "✓ Confirm Add": "✓ Konfirmasi Tambah",
   "📝 Configure providers in dashboard or use environment variables": "📝 Konfigurasi penyedia di dasbor atau gunakan variabel lingkungan",
-  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 OAuth diperlukan. Tambah sekarang dan autentikasi setelah Terapkan; daftar alat akan ditemukan setelah koneksi pertama."
+  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 OAuth diperlukan. Tambah sekarang dan autentikasi setelah Terapkan; daftar alat akan ditemukan setelah koneksi pertama.",
+  "Model Usage": "Penggunaan Model",
+  "Account Usage": "Penggunaan Akun",
+  "API Key Usage": "Penggunaan Kunci API",
+  "Endpoint Usage": "Penggunaan Endpoint",
+  "Chart": "Grafik",
+  "Table": "Tabel",
+  "Token Activity": "Aktivitas Token",
+  "Daily": "Harian",
+  "Weekly": "Mingguan",
+  "Cumulative": "Kumulatif",
+  "All-Time Tokens": "Total Token",
+  "Peak Day Tokens": "Puncak Token Harian",
+  "Less": "Sedikit",
+  "More": "Banyak",
+  "All time": "Sepanjang waktu",
+  "Cache Hit Rate": "Rasio Cache",
+  "of input tokens": "dari token input"
 }

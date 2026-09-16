@@ -1389,5 +1389,22 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ اطلاعیه ریسک: این ارائه‌دهنده از اشتراک/جلسه OAuth استفاده می‌کند که به طور رسمی برای استفاده پروکسی/روتر مجوز ندارد. حساب ممکن است محدود یا مسدود شود. با مسئولیت خود استفاده کنید.",
   "✓ Confirm Add": "✓ تأیید افزودن",
   "📝 Configure providers in dashboard or use environment variables": "📝 ارائه‌دهندگان را در داشبورد پیکربندی کنید یا از متغیرهای محیطی استفاده کنید",
-  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 نیاز به OAuth. اکنون اضافه کنید و پس از اعمال، احراز هویت کنید؛ لیست ابزارها پس از اولین اتصال کشف می‌شود."
+  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 نیاز به OAuth. اکنون اضافه کنید و پس از اعمال، احراز هویت کنید؛ لیست ابزارها پس از اولین اتصال کشف می‌شود.",
+  "Model Usage": "مصرف مدل",
+  "Account Usage": "مصرف حساب",
+  "API Key Usage": "مصرف کلید API",
+  "Endpoint Usage": "مصرف اندپوینت",
+  "Chart": "نمودار",
+  "Table": "جدول",
+  "Token Activity": "فعالیت توکن",
+  "Daily": "روزانه",
+  "Weekly": "هفتگی",
+  "Cumulative": "تجمعی",
+  "All-Time Tokens": "کل توکن‌ها",
+  "Peak Day Tokens": "اوج روزانه توکن",
+  "Less": "کمتر",
+  "More": "بیشتر",
+  "All time": "همه زمان‌ها",
+  "Cache Hit Rate": "نرخ کش",
+  "of input tokens": "از توکن‌های ورودی"
 }

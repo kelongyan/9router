@@ -14,6 +14,8 @@ import Badge from "./Badge";
 import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
+import UsageBreakdown from "@/app/(dashboard)/dashboard/usage/components/UsageBreakdown";
+import TokenActivity from "@/app/(dashboard)/dashboard/usage/components/TokenActivity";
 import dynamic from "next/dynamic";
 // Lazy-load: keeps @xyflow/react out of the shared bundle until topology renders
 const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
@@ -210,14 +212,34 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
+  const [heatmap, setHeatmap] = useState(null);
   const [tableView, setTableView] = useState("model");
   const [viewMode, setViewMode] = useState("costs");
+  const [displayMode, setDisplayMode] = useState("chart");
   const [providers, setProviders] = useState([]);
   const [periodLocal, setPeriodLocal] = useState("today");
   const isInitialLoad = useRef(true);
   const hasLoadedStats = useRef(false);
   const period = periodProp ?? periodLocal;
   const setPeriod = setPeriodProp ?? setPeriodLocal;
+
+  // Persist breakdown display mode (chart/table) across sessions
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("usage-stats:display-mode");
+      if (saved === "chart" || saved === "table") setDisplayMode(saved);
+    } catch (e) {
+      console.error("Failed to load display mode:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("usage-stats:display-mode", displayMode);
+    } catch (e) {
+      console.error("Failed to save display mode:", e);
+    }
+  }, [displayMode]);
 
   // Fetch connected providers once, deduplicate by provider type
   // Always include noAuth free providers (e.g. opencode) regardless of connections
@@ -276,6 +298,14 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       });
   }, [period]);
 
+  // Fetch heatmap (per-day activity + all-time totals) once — not period-dependent
+  useEffect(() => {
+    fetch("/api/usage/heatmap")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setHeatmap(data || { days: {}, stats: null }))
+      .catch(() => setHeatmap({ days: {}, stats: null }));
+  }, []);
+
   // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
     const es = new EventSource("/api/usage/stream");
@@ -323,6 +353,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       case "model": {
         const pendingMap = stats.pending?.byModel || {};
         return {
+          title: "Model Usage",
           columns: MODEL_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byModel, pendingMap, sortBy, sortOrder), "rawModel"),
           storageKey: "usage-stats:expanded-models",
@@ -356,6 +387,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           });
         }
         return {
+          title: "Account Usage",
           columns: ACCOUNT_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byAccount, pendingMap, sortBy, sortOrder), "accountName"),
           storageKey: "usage-stats:expanded-accounts",
@@ -381,6 +413,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       }
       case "apiKey": {
         return {
+          title: "API Key Usage",
           columns: API_KEY_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byApiKey, {}, sortBy, sortOrder), "keyName"),
           storageKey: "usage-stats:expanded-apikeys",
@@ -407,6 +440,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       case "endpoint":
       default: {
         return {
+          title: "Endpoint Usage",
           columns: ENDPOINT_COLUMNS,
           groupedData: groupDataByKey(sortData(stats.byEndpoint, {}, sortBy, sortOrder), "endpoint"),
           storageKey: "usage-stats:expanded-endpoints",
@@ -465,7 +499,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       )}
 
       {/* Overview cards */}
-      {loading ? spinner : <OverviewCards stats={stats} />}
+      {loading ? spinner : <OverviewCards stats={stats} allTimeStats={heatmap?.stats} />}
 
       {/* Provider topology + Recent Requests */}
       {loading ? spinner : (
@@ -483,7 +517,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       {/* Token / Cost chart - sync period */}
       {loading ? spinner : <UsageChart period={period} />}
 
-      {/* Table with dropdown selector */}
+      {/* Breakdown visualization (donut) / table with selector */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <select
@@ -496,38 +530,67 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex">
-            <button
-              onClick={() => setViewMode("costs")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "costs" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-            >
-              Costs
-            </button>
-            <button
-              onClick={() => setViewMode("tokens")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-            >
-              Tokens
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1">
+              <button
+                onClick={() => setViewMode("costs")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "costs" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+              >
+                Costs
+              </button>
+              <button
+                onClick={() => setViewMode("tokens")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+              >
+                Tokens
+              </button>
+            </div>
+            <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1">
+              <button
+                onClick={() => setDisplayMode("chart")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${displayMode === "chart" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+              >
+                Chart
+              </button>
+              <button
+                onClick={() => setDisplayMode("table")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${displayMode === "table" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+              >
+                Table
+              </button>
+            </div>
           </div>
         </div>
         {loading ? spinner : activeTableConfig && (
-          <UsageTable
-            title=""
-            columns={activeTableConfig.columns}
-            groupedData={activeTableConfig.groupedData}
-            tableType={tableView}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onToggleSort={toggleSort}
-            viewMode={viewMode}
-            storageKey={activeTableConfig.storageKey}
-            renderSummaryCells={activeTableConfig.renderSummaryCells}
-            renderDetailCells={activeTableConfig.renderDetailCells}
-            emptyMessage={activeTableConfig.emptyMessage}
-          />
+          displayMode === "chart" ? (
+            <UsageBreakdown
+              key={tableView}
+              title={activeTableConfig.title}
+              groups={activeTableConfig.groupedData}
+              viewMode={viewMode}
+              emptyMessage={activeTableConfig.emptyMessage}
+            />
+          ) : (
+            <UsageTable
+              title={activeTableConfig.title}
+              columns={activeTableConfig.columns}
+              groupedData={activeTableConfig.groupedData}
+              tableType={tableView}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onToggleSort={toggleSort}
+              viewMode={viewMode}
+              storageKey={activeTableConfig.storageKey}
+              renderSummaryCells={activeTableConfig.renderSummaryCells}
+              renderDetailCells={activeTableConfig.renderDetailCells}
+              emptyMessage={activeTableConfig.emptyMessage}
+            />
+          )
         )}
       </div>
+
+      {/* Year activity heatmap */}
+      <TokenActivity days={heatmap?.days ?? null} />
     </div>
   );
 }
