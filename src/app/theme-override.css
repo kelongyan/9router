@@ -1,0 +1,98 @@
+/* ============================================================
+   Local theme overrides — zero-conflict customization layer
+   (this file does not exist upstream, so upstream merges never touch it).
+
+   Imported after ./globals.css in src/app/layout.js, so every declaration
+   here wins the cascade at equal specificity.
+
+   HOW IT WORKS
+   - globals.css declares the palette as CSS variables on `:root` (light) and
+     `.dark` (dark), then re-exports them through Tailwind's `@theme inline`
+     block. Utilities such as `bg-primary` or `from-brand-500` therefore resolve
+     to `var(--color-…)` at computed-value time, so overriding the variable here
+     is enough — no component needs to change. The Sidebar logo gradient
+     (`from-brand-500 to-brand-700`) follows these variables automatically.
+   - Override ONLY what you want to change; everything else keeps inheriting.
+   - Do NOT add a `@theme inline` block here: that block exists to feed Tailwind's
+     utility generation, and a copy here would not do that.
+
+   Full convention: docs/CUSTOMIZATION.md
+   ============================================================ */
+
+/* ---- Light theme -------------------------------------------------
+   The values below are the current defaults, so uncommenting one is a
+   no-op until you change the value. */
+:root {
+  /* Brand scale — also drives --color-primary and the Sidebar logo gradient */
+  /* --color-brand-500: #E56A4A; */
+  /* --color-brand-600: #cc5236; */
+  /* --color-brand-700: #a64027; */
+
+  /* Surfaces */
+  /* --color-bg: #FDFAF6; */
+  /* --color-bg-alt: #F7F3EE; */
+  /* --color-surface: #ffffff; */
+  /* --color-sidebar: rgba(244, 241, 236, 0.85); */
+
+  /* Borders / text */
+  /* --color-border: #e5e7eb; */
+  /* --color-text-muted: #6B7280; */
+
+  /* Status */
+  /* --color-danger: #cf222e; */
+  /* --color-success: #10B981; */
+
+  /* Shape */
+  /* --radius-brand: 10px; */
+  /* --radius-brand-lg: 14px; */
+}
+
+/* ---- Dark theme --------------------------------------------------
+   NOTE: unlike the light theme, dark mode declares --color-primary and
+   --color-primary-hover as literal values (not as brand aliases), so
+   re-coloring the accent in dark mode means overriding those two as well —
+   otherwise `bg-primary` keeps the stock orange while the logo gradient
+   changes. */
+.dark {
+  /* --color-brand-500: #E56A4A; */
+  /* --color-brand-600: #cc5236; */
+  /* --color-brand-700: #a64027; */
+  /* --color-primary: #E56A4A; */
+  /* --color-primary-hover: #cc5236; */
+
+  /* --color-bg: #1a1a1a; */
+  /* --color-bg-alt: #1F1F1E; */
+  /* --color-surface: #262626; */
+  /* --color-sidebar: rgba(30, 30, 30, 0.85); */
+
+  /* --color-border: #333333; */
+  /* --color-text-muted: #9ca3af; */
+}
+
+/* ---- Chinese font: Frex Sans GB ----------------------------------
+   Self-hosted from public/fonts/frex-sans-gb/ — woff2 instances of the upstream
+   variable font (`variable/Frex Sans GB[wght].ttf`). The five weights below are
+   the ones the dashboard actually asks for; the family also ships Thin(100) /
+   ExtraLight(200) / Text(450) — copy the file and add a block of the same shape
+   if a `font-thin` / `font-extralight` ever appears.
+
+   `unicode-range` is what makes this a *Chinese* font: the files cover CJK
+   glyphs, and the range restricts them to CJK + fullwidth/CJK punctuation, so
+   Latin keeps coming from Inter. Punctuation outside the range (curly quotes
+   “ ” U+2018-201D, em dash U+2014, ellipsis U+2026) stays with the Latin/OS
+   fallback — add U+2000-206F above if that ever looks inconsistent in Chinese
+   copy. */
+@font-face { font-family: "Frex Sans GB"; src: url("/fonts/frex-sans-gb/FrexSansGB-Light.woff2") format("woff2"); font-weight: 300; font-style: normal; font-display: swap; unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF; }
+@font-face { font-family: "Frex Sans GB"; src: url("/fonts/frex-sans-gb/FrexSansGB-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF; }
+@font-face { font-family: "Frex Sans GB"; src: url("/fonts/frex-sans-gb/FrexSansGB-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF; }
+@font-face { font-family: "Frex Sans GB"; src: url("/fonts/frex-sans-gb/FrexSansGB-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF; }
+@font-face { font-family: "Frex Sans GB"; src: url("/fonts/frex-sans-gb/FrexSansGB-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF; }
+
+/* Both declarations are needed: the variable re-fonts the page (globals.css sets
+   `body` from it), and re-pointing the `font-sans` utility at the variable covers
+   the elements that carry that utility — `@theme inline` bakes the original
+   literal into it. */
+:root {
+  --font-sans: 'Inter', 'Frex Sans GB', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+}
+.font-sans { font-family: var(--font-sans); }
