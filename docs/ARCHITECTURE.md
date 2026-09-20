@@ -1,6 +1,6 @@
 # 9Router Architecture
 
-_Last updated: 2026-02-06_
+_Last updated: 2026-09-19_
 
 ## Executive Summary
 
@@ -14,7 +14,7 @@ Core capabilities:
 - Model combo fallback (multi-model sequence)
 - Account-level fallback (multi-account per provider)
 - OAuth + API-key provider connection management
-- Local persistence for providers, keys, aliases, combos, settings, pricing
+- SQLite-backed local persistence for providers, keys, aliases, combos, settings, pricing
 - Usage/cost tracking and request logging
 - Optional cloud sync for multi-device/state sync
 
@@ -56,8 +56,7 @@ flowchart LR
         API[V1 Compatibility API\n/v1/*]
         DASH[Dashboard + Management API\n/api/*]
         CORE[SSE + Translation Core\nopen-sse + src/sse]
-        DB[(db.json)]
-        UDB[(usage.json + log.txt)]
+        DB[(SQLite\ndata.sqlite)]
     end
 
     subgraph Upstreams[Upstream Providers]
@@ -79,7 +78,6 @@ flowchart LR
     API --> CORE
     DASH --> DB
     CORE --> DB
-    CORE --> UDB
 
     CORE --> P1
     CORE --> P2
@@ -135,17 +133,27 @@ Main flow modules:
 
 ## 3) Persistence Layer
 
-Primary state DB:
+Single SQLite database under `src/lib/db/` (`driver.js` picks the first available
+driver: `bun:sqlite` → `better-sqlite3` → `node:sqlite` (Node ≥22.5) → `sql.js`):
 
-- `src/lib/localDb.js`
-- file: `${DATA_DIR}/db.json` (or `~/.9router/db.json` when `DATA_DIR` is unset)
-- entities: providerConnections, providerNodes, modelAliases, combos, apiKeys, settings, pricing
+- file: `${DATA_DIR}/db/data.sqlite`, backups in `${DATA_DIR}/db/backups/`
+- `DATA_DIR` resolves in `src/lib/dataDir.js`: the `DATA_DIR` env var if set (and
+  writable), otherwise `%APPDATA%/9router` on Windows, `~/.9router` elsewhere
+- config tables: providerConnections, providerNodes, modelAliases, combos,
+  apiKeys, proxyPools, settings, pricing, disabledModels
+- usage tables: `usageHistory` (per-request detail; feeds the today/24h views),
+  `usageDaily` (per-day aggregate, `dateKey` = local `YYYY-MM-DD`; feeds 7d/30d/
+  60d/all and the heatmap), `requestDetails` (deep per-request log)
+- request log lines are **derived, not appended**: `appendRequestLog()` is a
+  no-op and `getRecentLogs()` formats rows from `usageHistory`
 
-Usage DB:
-
-- `src/lib/usageDb.js`
-- files: `~/.9router/usage.json`, `~/.9router/log.txt`
-- note: currently independent from `DATA_DIR`
+Legacy files — `db.json`, `usage.json`, `disabledModels.json`,
+`request-details.json` (all under `DATA_DIR`, `LEGACY_FILES` in
+`src/lib/db/paths.js`) — are read once by `src/lib/db/migrate.js` on first run
+and then backed up; they are never written after migration. `src/lib/localDb.js`
+and `src/lib/usageDb.js` are backward-compat shims re-exporting
+`src/lib/db/index.js`; new code should import from `@/lib/db/index.js`, with
+per-entity logic in `src/lib/db/repos/*`.
 
 ## 4) Auth + Security Surfaces
 
@@ -375,11 +383,9 @@ erDiagram
     }
 ```
 
-Physical storage files:
+Physical storage:
 
-- main state: `${DATA_DIR}/db.json` (or `~/.9router/db.json`)
-- usage stats: `~/.9router/usage.json`
-- request log lines: `~/.9router/log.txt`
+- every entity above: `${DATA_DIR}/db/data.sqlite` (single SQLite file; see §3)
 - optional translator/request debug sessions: `<repo>/logs/...`
 
 ## Deployment Topology
@@ -444,23 +450,25 @@ flowchart LR
 
 ### Persistence
 
-- `src/lib/localDb.js`: persistent config/state
-- `src/lib/usageDb.js`: usage history and rolling request logs
+- `src/lib/db/index.js` + `src/lib/db/repos/*`: all config/state and usage persistence (SQLite, see §3)
+- `src/lib/localDb.js` / `src/lib/usageDb.js`: backward-compat shims over `@/lib/db/index.js`
 
 ## Provider Executor Coverage
 
-Specialized executors:
+Specialized executors (27, registered in the `executors` map of `open-sse/executors/index.js`):
 
-- `antigravity`
-- `gemini-cli`
-- `github`
-- `kiro`
-- `codex`
-- `cursor`
+`antigravity`, `azure`, `codebuddy-cn`, `codebuddy-intl`, `codex`,
+`commandcode`, `cursor`, `devin-cli`, `gemini-cli`, `github`, `grok-cli`,
+`grok-web`, `iflow`, `kiro`, `kimchi`, `mimo-free`, `ollama-local`,
+`opencode`, `opencode-go`, `perplexity-web`, `qoder`, `trae`, `vertex`,
+`windsurf`, `xiaomi-mimo`, `xiaomi-tokenplan`, `zed`
+
+plus in-map aliases: `cu` → cursor, `gcli`/`gb` → grok-cli, `mmf` → mimo-free,
+`vertex-partner` → vertex.
 
 Default executor path:
 
-- all other providers (including compatible node providers) use `open-sse/executors/default.js`
+- all other providers (including compatible node providers) use `open-sse/executors/default.js`; it is instantiated per provider and cached, so unknown providers still work
 
 ## Format Translation Coverage
 
@@ -475,9 +483,13 @@ Target formats include:
 
 - OpenAI chat/Responses
 - Claude
-- Gemini/Gemini-CLI/Antigravity envelope
+- Gemini/Gemini-CLI
 - Kiro
 - Cursor
+- Antigravity
+- Vertex
+- Ollama
+- CommandCode
 
 Translations are selected dynamically based on source payload shape and provider target format.
 
@@ -542,15 +554,15 @@ Environment variables actively used by code:
 
 ## Known Architectural Notes
 
-1. `usageDb` currently stores under `~/.9router` and does not follow `DATA_DIR`.
+1. Usage state follows `DATA_DIR` — it all lives in `${DATA_DIR}/db/data.sqlite` (`usageHistory` / `usageDaily` / `requestDetails`); the legacy `~/.9router/usage.json` + `log.txt` are migrated once and no longer written.
 2. `/api/v1/route.js` returns a static model list and is not the main models source used by `/v1/models`.
 3. Request logger writes full headers/body when enabled; treat log directory as sensitive.
 4. Cloud behavior depends on correct `NEXT_PUBLIC_BASE_URL` and cloud endpoint reachability.
 
 ## Operational Verification Checklist
 
-- Build from source: `cd /root/dev/9router && npm run build`
-- Build Docker image: `cd /root/dev/9router && docker build -t 9router .`
+- Build from source: from the repo root, `npx next build` then `node scripts/copy-standalone-assets.mjs` (Turbopack is the reliable engine here — the `npm run build` webpack variant can fail on Windows; see the build gotchas in `CLAUDE.md`)
+- Build Docker image: `docker build -t 9router .`
 - Start service and verify:
 - `GET /api/settings`
 - `GET /api/v1/models`
