@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
 import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { UI_FLAGS } from "@/shared/constants/customUi";
 import {
   TUNNEL_BENEFITS,
   TUNNEL_PING_INTERVAL_MS,
@@ -914,7 +915,7 @@ export default function APIPageClient({ machineId }) {
         </div>
 
         {/* Pre-enable security gate banner */}
-        {isLoginUnsafe && !tunnelEnabled && !tsEnabled && (
+        {UI_FLAGS.showTunnelSecurityNag && isLoginUnsafe && !tunnelEnabled && !tsEnabled && (
           <div className="mt-4">
             <SecurityWarning
               message={unsafeReason}
