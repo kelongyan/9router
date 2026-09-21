@@ -17,6 +17,7 @@ import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels"
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
+import ModelPickerModal from "./ModelPickerModal";
 import ConnectionRow from "./ConnectionRow";
 import AddApiKeyModal from "./AddApiKeyModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
@@ -85,6 +86,13 @@ export default function ProviderDetailPage() {
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
   const [importingClineModels, setImportingClineModels] = useState(false);
+  // Model picker: the provider's /models catalog is fetched first and the user picks
+  // what to add, instead of every model being imported into the list.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerModels, setPickerModels] = useState([]);
+  const [pickerTitle, setPickerTitle] = useState("");
+  const [pickerBusy, setPickerBusy] = useState(false);
+  const [pickerFetching, setPickerFetching] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -584,105 +592,138 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Fetch Qoder model list and automatically add to available models
-  const handleImportQoderModels = async () => {
-    if (importingQoderModels) return;
+  // Fetch a provider's live /models catalog and hand it to the picker, so the user
+  // chooses what gets added instead of importing every model the endpoint exposes
+  // (Cline currently returns ~450, most of which nobody wants in the list).
+  const fetchModelsForPicker = async ({ label, normalizeId }) => {
     const activeConnection = connections.find((conn) => conn.isActive !== false);
     if (!activeConnection) {
-      alert(translate("Please add an active Qoder connection first"));
+      alert(translate("Please add an active connection first"));
       return;
     }
-
-    setImportingQoderModels(true);
     try {
       const res = await fetch(`/api/providers/${activeConnection.id}/models`);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data.error || translate("Failed to fetch models"));
         return;
       }
-      const models = data.models || [];
-      if (models.length === 0) {
+      const seen = new Set();
+      const list = [];
+      for (const model of data.models || []) {
+        const raw = model.id || model.name || model.model;
+        if (!raw) continue;
+        const id = normalizeId ? normalizeId(raw) : raw;
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        list.push({ id, name: model.name || id });
+      }
+      if (list.length === 0) {
         alert(translate("No models returned"));
         return;
       }
-
-      let importedCount = 0;
-      for (const model of models) {
-        const modelId = model.id || model.name;
-        if (!modelId) continue;
-        
-        // Qoder model ID format may be "qoder/auto" or "auto", need to remove prefix
-        const cleanModelId = modelId.replace(/^qoder\//, "");
-        const alreadyExists = customModels.some(
-          (entry) => entry.providerAlias === providerStorageAlias && entry.id === cleanModelId && (entry.kind || entry.type || "llm") === "llm"
-        ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${cleanModelId}`);
-        if (alreadyExists) {
-          continue;
-        }
-
-        await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias);
-        importedCount += 1;
-      }
-      
-      if (importedCount === 0) {
-        alert(translate("All models already exist, no new models added"));
-      } else {
-        alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
-      }
+      setPickerModels(list);
+      setPickerTitle(`${translate("Add models")} · ${label}`);
+      setPickerOpen(true);
     } catch (error) {
-      console.log("Error importing Qoder models:", error);
+      console.log("Error fetching models for picker:", error);
       alert(translate("Error fetching models") + ": " + error.message);
+    }
+  };
+
+  const handleImportQoderModels = async () => {
+    if (importingQoderModels) return;
+    setImportingQoderModels(true);
+    try {
+      // Qoder model IDs may arrive as "qoder/auto"; the stored id drops that prefix.
+      await fetchModelsForPicker({ label: "Qoder", normalizeId: (id) => id.replace(/^qoder\//, "") });
     } finally {
       setImportingQoderModels(false);
     }
   };
-  // Fetch the live Cline /models catalog and add every model not yet present.
-  // Cline and ClinePass share the same catalog endpoint (api.cline.bot/api/v1/models).
+
   const handleImportClineModels = async () => {
     if (importingClineModels) return;
-    const activeConnection = connections.find((conn) => conn.isActive !== false);
-    if (!activeConnection) {
-      alert(translate("Please add an active Cline connection first"));
-      return;
-    }
     setImportingClineModels(true);
     try {
-      const res = await fetch(`/api/providers/${activeConnection.id}/models`);
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || translate("Failed to fetch models"));
-        return;
-      }
-      const models = data.models || [];
-      if (models.length === 0) {
-        alert(translate("No models returned"));
-        return;
-      }
-      let importedCount = 0;
-      for (const model of models) {
-        const modelId = model.id || model.name;
-        if (!modelId) continue;
-        const alreadyExists = customModels.some(
-          (entry) => entry.providerAlias === providerStorageAlias && entry.id === modelId && (entry.kind || entry.type || "llm") === "llm"
-        ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${modelId}`);
-        if (alreadyExists) {
-          continue;
-        }
-        await handleAddCustomModel(modelId, "llm", providerStorageAlias);
-        importedCount += 1;
-      }
-      if (importedCount === 0) {
-        alert(translate("All models already exist, no new models added"));
-      } else {
-        alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
-      }
-    } catch (error) {
-      console.log("Error importing Cline models:", error);
-      alert(translate("Error fetching models") + ": " + error.message);
+      await fetchModelsForPicker({ label: "Cline" });
     } finally {
       setImportingClineModels(false);
     }
+  };
+
+  const handleOpenPickerForCompatible = async () => {
+    if (pickerFetching) return;
+    setPickerFetching(true);
+    try {
+      await fetchModelsForPicker({ label: providerDisplayAlias });
+    } finally {
+      setPickerFetching(false);
+    }
+  };
+
+  // Everything already present for this provider (custom entries, aliased rows and the
+  // registry's built-in catalog) — the picker shows those locked instead of re-adding them.
+  const existingModelIdsForPicker = (() => {
+    const set = new Set();
+    for (const entry of customModels) {
+      if (entry?.providerAlias !== providerStorageAlias) continue;
+      if ((entry.kind || entry.type || "llm") !== "llm") continue;
+      if (entry.id) set.add(entry.id);
+    }
+    for (const value of Object.values(modelAliases)) {
+      if (typeof value === "string" && value.startsWith(`${providerStorageAlias}/`)) {
+        set.add(value.slice(providerStorageAlias.length + 1));
+      }
+    }
+    for (const model of models) {
+      if (model?.id) set.add(model.id);
+    }
+    return [...set];
+  })();
+
+  const handlePickerConfirm = async (ids) => {
+    if (!ids.length) return;
+    setPickerBusy(true);
+    try {
+      const res = await fetch("/api/models/custom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerAlias: providerStorageAlias, type: "llm", ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || translate("Failed to add models"));
+        return;
+      }
+      await fetchCustomModels();
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+      setPickerOpen(false);
+    } catch (error) {
+      console.log("Error adding picked models:", error);
+      alert(translate("Failed to add models"));
+    } finally {
+      setPickerBusy(false);
+    }
+  };
+
+  const handleClearCustomModels = () => {
+    setConfirmState({
+      title: translate("Clear custom models"),
+      message: translate("Remove every custom model of this provider from the model list?"),
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          const res = await fetch(`/api/models/custom?providerAlias=${encodeURIComponent(providerStorageAlias)}&type=llm`, { method: "DELETE" });
+          if (res.ok) {
+            await fetchCustomModels();
+            if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+          }
+        } catch (error) {
+          console.log("Error clearing custom models:", error);
+        }
+      },
+    });
   };
 
   const handleRunOneByOneTest = async () => {
@@ -1160,6 +1201,8 @@ export default function ProviderDetailPage() {
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
+          pickerFetching={pickerFetching}
+          onOpenModelPicker={handleOpenPickerForCompatible}
         />
       );
     }
@@ -1255,7 +1298,7 @@ export default function ProviderDetailPage() {
             <span className="material-symbols-outlined text-sm" style={importingQoderModels ? { animation: "spin 1s linear infinite" } : undefined}>
               {importingQoderModels ? "progress_activity" : "download"}
             </span>
-            {importingQoderModels ? translate("Fetching...") : translate("Fetch Qoder Models")}
+            {importingQoderModels ? translate("Fetching...") : translate("Select from /models")}
           </button>
         )}
 
@@ -1269,7 +1312,7 @@ export default function ProviderDetailPage() {
             <span className="material-symbols-outlined text-sm" style={importingClineModels ? { animation: "spin 1s linear infinite" } : undefined}>
               {importingClineModels ? "progress_activity" : "download"}
             </span>
-            {importingClineModels ? translate("Fetching...") : translate("Import from /models")}
+            {importingClineModels ? translate("Fetching...") : translate("Select from /models")}
           </button>
         )}
 
@@ -1766,6 +1809,9 @@ export default function ProviderDetailPage() {
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
             ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
             const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
+            const customCount = customModels.filter(
+              (entry) => entry?.providerAlias === providerStorageAlias && (entry.kind || entry.type || "llm") === "llm",
+            ).length;
             return (
               <div className="flex gap-2">
                 {disabledModelIds.length > 0 && (
@@ -1776,6 +1822,11 @@ export default function ProviderDetailPage() {
                 {activeIds.length > 0 && (
                   <Button size="sm" variant="secondary" icon="block" onClick={() => handleDisableAll(activeIds)}>
                     Disable All
+                  </Button>
+                )}
+                {customCount > 0 && (
+                  <Button size="sm" variant="secondary" icon="delete_sweep" onClick={handleClearCustomModels}>
+                    {translate("Clear custom")} ({customCount})
                   </Button>
                 )}
               </div>
@@ -1910,6 +1961,16 @@ export default function ProviderDetailPage() {
           onClose={() => setShowAddCustomModel(false)}
         />
       )}
+
+      <ModelPickerModal
+        isOpen={pickerOpen}
+        title={pickerTitle}
+        models={pickerModels}
+        existingIds={existingModelIdsForPicker}
+        busy={pickerBusy}
+        onConfirm={handlePickerConfirm}
+        onClose={() => setPickerOpen(false)}
+      />
 
       {providerId === "codex" && (
         <BulkImportCodexModal

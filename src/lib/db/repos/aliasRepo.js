@@ -54,6 +54,47 @@ export async function deleteCustomModel({ providerAlias, id, type = "llm" }) {
   await customKv.remove(customKey(providerAlias, id, type));
 }
 
+// Batch insert in a single transaction — used by the model picker, where the user
+// picks a handful out of a few hundred. Existing entries are left untouched (the
+// picker marks them as already added, so re-adding must not clobber their caps).
+export async function addCustomModels({ providerAlias, type = "llm", ids }) {
+  const list = Array.isArray(ids) ? [...new Set(ids.filter((id) => typeof id === "string" && id.trim()))] : [];
+  if (!providerAlias || list.length === 0) return 0;
+  const db = await getAdapter();
+  let added = 0;
+  db.transaction(() => {
+    for (const id of list) {
+      const k = customKey(providerAlias, id, type);
+      const row = db.get(`SELECT value FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);
+      if (row) continue;
+      db.run(`INSERT INTO kv(scope, key, value) VALUES('customModels', ?, ?)`, [
+        k,
+        stringifyJson({ providerAlias, id, type, name: id }),
+      ]);
+      added += 1;
+    }
+  });
+  return added;
+}
+
+// Remove every custom model of a provider. `type` narrows it to one kind (e.g. "llm"),
+// so clearing the model list never takes embedding/tts entries with it.
+export async function deleteCustomModelsByProvider({ providerAlias, type }) {
+  if (!providerAlias) return 0;
+  const db = await getAdapter();
+  const rows = db.all(`SELECT key FROM kv WHERE scope = 'customModels'`, []);
+  const victims = rows
+    .map((r) => r.key)
+    .filter((k) => k.startsWith(`${providerAlias}|`) && (!type || k.endsWith(`|${type}`)));
+  if (victims.length === 0) return 0;
+  db.transaction(() => {
+    for (const k of victims) {
+      db.run(`DELETE FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);
+    }
+  });
+  return victims.length;
+}
+
 // mitmAlias: key=toolName, value=mappings object
 export async function getMitmAlias(toolName) {
   if (toolName) {
