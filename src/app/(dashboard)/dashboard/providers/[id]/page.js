@@ -180,7 +180,7 @@ export default function ProviderDetailPage() {
   const apiKeyConnectionLabel =
     providerId === "xai" ? "xAI API Key"
     : providerId === "kimi" ? "Kimi API Key"
-    : providerId === "qoder" ? "PAT"
+    : (providerId === "qoder" || providerId === "qoder-cn") ? "PAT"
     : "API Key";
   // Resolve suffix "(level)" for a model when a thinking level is picked and the model supports it.
   const resolveThinkingSuffix = (modelId) => {
@@ -635,8 +635,8 @@ export default function ProviderDetailPage() {
     if (importingQoderModels) return;
     setImportingQoderModels(true);
     try {
-      // Qoder model IDs may arrive as "qoder/auto"; the stored id drops that prefix.
-      await fetchModelsForPicker({ label: "Qoder", normalizeId: (id) => id.replace(/^qoder\//, "") });
+      // Qoder model IDs may arrive as "qoder/auto" or "qoder-cn/auto"; the stored id drops that prefix.
+      await fetchModelsForPicker({ label: "Qoder", normalizeId: (id) => id.replace(/^(qoder-cn|qoder)\//, "") });
     } finally {
       setImportingQoderModels(false);
     }
@@ -1288,8 +1288,8 @@ export default function ProviderDetailPage() {
           Add Model
         </button>
 
-        {/* Import Qoder models button — only show for qoder provider */}
-        {providerId === "qoder" && connections.some((conn) => conn.isActive !== false) && (
+        {/* Import Qoder models button — only show for qoder/qoder-cn provider */}
+        {(providerId === "qoder" || providerId === "qoder-cn") && connections.some((conn) => conn.isActive !== false) && (
           <button
             onClick={handleImportQoderModels}
             disabled={importingQoderModels}
