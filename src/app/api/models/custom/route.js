@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCustomModels, addCustomModel, addCustomModels, deleteCustomModel, deleteCustomModelsByProvider } from "@/models";
+import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
 import { CAPACITY_META } from "@/shared/constants/models";
 
 export const dynamic = "force-dynamic";
@@ -25,19 +25,11 @@ export async function GET() {
   }
 }
 
-// POST /api/models/custom - Add custom model, or several at once
-// body: { providerAlias, id, type?, name?, caps? }  |  { providerAlias, type?, ids: [...] }
+// POST /api/models/custom - Add custom model
 export async function POST(request) {
   try {
-    const { providerAlias, id, ids, type, name, caps } = await request.json();
-    if (!providerAlias) {
-      return NextResponse.json({ error: "providerAlias required" }, { status: 400 });
-    }
-    if (Array.isArray(ids)) {
-      const count = await addCustomModels({ providerAlias, type: type || "llm", ids });
-      return NextResponse.json({ success: true, count });
-    }
-    if (!id) {
+    const { providerAlias, id, type, name, caps } = await request.json();
+    if (!providerAlias || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     const cleanCaps = sanitizeCaps(caps);
@@ -49,20 +41,15 @@ export async function POST(request) {
   }
 }
 
-// DELETE /api/models/custom?providerAlias=xxx[&id=yyy][&type=zzz]
-// Without `id`, removes every custom model of that provider (narrowed to `type` when given).
+// DELETE /api/models/custom?providerAlias=xxx&id=yyy&type=zzz
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
     const providerAlias = searchParams.get("providerAlias");
     const id = searchParams.get("id");
     const type = searchParams.get("type") || "llm";
-    if (!providerAlias) {
-      return NextResponse.json({ error: "providerAlias required" }, { status: 400 });
-    }
-    if (!id) {
-      const removed = await deleteCustomModelsByProvider({ providerAlias, type });
-      return NextResponse.json({ success: true, removed });
+    if (!providerAlias || !id) {
+      return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     await deleteCustomModel({ providerAlias, id, type });
     return NextResponse.json({ success: true });
