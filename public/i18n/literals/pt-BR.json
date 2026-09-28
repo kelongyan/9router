@@ -1148,4 +1148,18 @@
   "All time": "Todo o período",
   "Cache Hit Rate": "Taxa de Acerto de Cache",
   "of input tokens": "dos tokens de entrada"
+,
+  "Free Models": "Modelos gratuitos",
+  "Probe all": "Testar todos",
+  "Probing...": "Testando...",
+  "Probe": "Testar",
+  "Login required": "Login necessário",
+  "Not probed": "Não testado",
+  "No free models detected.": "Nenhum modelo gratuito detectado."
+,
+  "Free models verified by live probes through the gateway — stale catalog entries show as unavailable instead of wasting your time.": "Modelos gratuitos verificados por sondas ao vivo através do gateway — entradas desatualizadas do catálogo aparecem como indisponíveis em vez de desperdiçar seu tempo."
+,
+  "free models will show up here once you add a login or API key for this provider.": "modelos gratuitos aparecerão aqui quando você adicionar login ou chave de API para este provedor."
+,
+  "No models available right now.": "Nenhum modelo disponível no momento."
 }

@@ -1407,4 +1407,18 @@
   "All time": "Sepanjang waktu",
   "Cache Hit Rate": "Rasio Cache",
   "of input tokens": "dari token input"
+,
+  "Free Models": "Model Gratis",
+  "Probe all": "Uji Semua",
+  "Probing...": "Menguji...",
+  "Probe": "Uji",
+  "Login required": "Perlu login",
+  "Not probed": "Belum diuji",
+  "No free models detected.": "Tidak ada model gratis yang terdeteksi."
+,
+  "Free models verified by live probes through the gateway — stale catalog entries show as unavailable instead of wasting your time.": "Model gratis diverifikasi dengan probe langsung melalui gateway — entri katalog yang kedaluwarsa ditampilkan sebagai tidak tersedia, tidak membuang waktu Anda."
+,
+  "free models will show up here once you add a login or API key for this provider.": "model gratis akan muncul di sini setelah Anda menambahkan login atau API key untuk penyedia ini."
+,
+  "No models available right now.": "Tidak ada model yang tersedia saat ini."
 }

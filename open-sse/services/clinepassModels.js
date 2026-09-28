@@ -7,7 +7,10 @@ const CLINEPASS_MODELS_ENDPOINT = "https://api.cline.bot/api/v1/models";
 // so no Authorization header is sent — adding one would only make the request
 // fail on a header the endpoint ignores.
 const CLINE_RECOMMENDED_MODELS_ENDPOINT = "https://api.cline.bot/api/v1/ai/cline/recommended-models";
-const FETCH_TIMEOUT_MS = 5000;
+// api.cline.bot can take ~8s to first byte on a cold connection (2026-09-28,
+// measured on the production network) — 5s aborted the recommended-models feed
+// every time, silently dropping the cline-free/* tier from live catalogs.
+const FETCH_TIMEOUT_MS = 12000;
 
 /**
  * Build request headers for the ClinePass /models endpoint (Cline's upstream API).
@@ -85,7 +88,7 @@ export async function resolveClinepassModels(credentials) {
  * @param {{accessToken?: string, apiKey?: string}} credentials
  * @returns {Promise<{id: string, name: string}[] | null>}
  */
-async function fetchClineFreeTierModels() {
+export async function fetchClineFreeTierModels() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 

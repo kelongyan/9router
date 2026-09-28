@@ -1412,4 +1412,18 @@
   "All time": "គ្រប់ពេល",
   "Cache Hit Rate": "អត្រា Cache",
   "of input tokens": "នៃ token បញ្ចូល"
+,
+  "Free Models": "ម៉ូដែលឥតគិតថ្លៃ",
+  "Probe all": "សាកល្បងទាំងអស់",
+  "Probing...": "កំពុងសាកល្បង...",
+  "Probe": "សាកល្បង",
+  "Login required": "ត្រូវការចូល",
+  "Not probed": "មិនទាន់សាកល្បង",
+  "No free models detected.": "រកមិនឃើញម៉ូដែលឥតគិតថ្លៃទេ។"
+,
+  "Free models verified by live probes through the gateway — stale catalog entries show as unavailable instead of wasting your time.": "ម៉ូដែលឥតគិតថ្លៃត្រូវបានផ្ទៀងផ្ទាត់ដោយការសាកល្បងផ្ទាល់តាមរយៈ gateway — ធាតុកាតាឡុកចាស់នឹងបង្ហាញថាមិនអាចប្រើបាន មិនបង្អាប់ពេលវេលាអ្នកទេ។"
+,
+  "free models will show up here once you add a login or API key for this provider.": "ម៉ូដែលឥតគិតថ្លៃនឹងបង្ហាញនៅទីនេះ នៅពេលអ្នកបន្ថែមការចូលឬ API key សម្រាប់ក្រុមហ៊ុនផ្ដល់សេវានេះ។"
+,
+  "No models available right now.": "បច្ចុប្បន្នមិនមានម៉ូដែលដែលអាចប្រើបានទេ។"
 }

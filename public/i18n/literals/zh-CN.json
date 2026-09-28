@@ -1433,4 +1433,18 @@
   "Europe · Amsterdam": "欧洲 · 阿姆斯特丹",
   "Russia": "俄罗斯",
   "India": "印度"
+,
+  "Free Models": "免费模型",
+  "Probe all": "全部探测",
+  "Probing...": "探测中...",
+  "Probe": "探测",
+  "Login required": "需要登录",
+  "Not probed": "未探测",
+  "No free models detected.": "未检测到免费模型。"
+,
+  "Free models verified by live probes through the gateway — stale catalog entries show as unavailable instead of wasting your time.": "免费模型由网关实时探测验证——编目里已过期的条目会显示为不可用，不浪费你的时间。"
+,
+  "free models will show up here once you add a login or API key for this provider.": "个免费模型将在你为该提供方添加登录或 API Key 后显示在这里。"
+,
+  "No models available right now.": "当前没有可用的模型。"
 }

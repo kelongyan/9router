@@ -1423,4 +1423,18 @@
   "Require SSO for dashboard access.":"برای دسترسی به داشبورد نیاز به SSO دارد.",
   "Allow password or SSO login.":"اجازه ورود با رمز عبور یا ورود یک‌بار مصرف (SSO)",
   "Save OIDC settings":"ذخیره تنظیمات OIDC"
+,
+  "Free Models": "مدل‌های رایگان",
+  "Probe all": "تست همه",
+  "Probing...": "در حال تست...",
+  "Probe": "تست",
+  "Login required": "ورود لازم است",
+  "Not probed": "تست نشده",
+  "No free models detected.": "هیچ مدل رایگانی شناسایی نشد."
+,
+  "Free models verified by live probes through the gateway — stale catalog entries show as unavailable instead of wasting your time.": "مدل‌های رایگان با پروب زنده از طریق گیت‌وی تأیید می‌شوند — موارد منقضی کاتالوگ به‌جای اتلاف وقت شما، غیرقابل استفاده نشان داده می‌شوند."
+,
+  "free models will show up here once you add a login or API key for this provider.": "مدل رایگان پس از افزودن ورود یا کلید API برای این ارائه‌دهنده اینجا نمایش داده می‌شود."
+,
+  "No models available right now.": "در حال حاضر هیچ مدلی در دسترس نیست."
 }

@@ -15,7 +15,9 @@ export const HIDDEN_NAV = [];
 // `icon` is a Material Symbols ligature name; `label` is the English source text
 // (the runtime i18n layer translates it when a dictionary entry exists). The page
 // itself goes in src/app/(dashboard)/dashboard/<module>/.
-export const EXTRA_NAV = [];
+export const EXTRA_NAV = [
+  { href: "/dashboard/free-models", label: "Free Models", icon: "bolt" },
+];
 
 // Apply HIDDEN_NAV + EXTRA_NAV to a sidebar nav item list. Pure, so it is safe to
 // call at module scope. Entries are deduped by href: an item added here that

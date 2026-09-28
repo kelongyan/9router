@@ -10,5 +10,10 @@ export async function register() {
 
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync.js");
     startModelCatalogSync();
+
+    // Local customization: free-models board boot + interval probing. Kept here
+    // (not in initializeApp.js) so upstream merges never touch that file for it.
+    const { scheduleFreeModelProbes } = await import("@/app/api/free-models/service");
+    scheduleFreeModelProbes();
   }
 }

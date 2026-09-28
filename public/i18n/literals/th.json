@@ -1407,4 +1407,18 @@
   "All time": "ตลอดเวลา",
   "Cache Hit Rate": "อัตราการแคช",
   "of input tokens": "จาก input tokens"
+,
+  "Free Models": "โมเดลฟรี",
+  "Probe all": "ทดสอบทั้งหมด",
+  "Probing...": "กำลังทดสอบ...",
+  "Probe": "ทดสอบ",
+  "Login required": "ต้องเข้าสู่ระบบ",
+  "Not probed": "ยังไม่ได้ทดสอบ",
+  "No free models detected.": "ไม่พบโมเดลฟรี"
+,
+  "Free models verified by live probes through the gateway — stale catalog entries show as unavailable instead of wasting your time.": "โมเดลฟรีได้รับการตรวจสอบสดผ่านเกตเวย์ — รายการที่ล้าสมัยในแคตตาล็อกจะแสดงเป็นใช้ไม่ได้ ไม่ทำให้คุณเสียเวลา"
+,
+  "free models will show up here once you add a login or API key for this provider.": "โมเดลฟรีจะปรากฏที่นี่เมื่อคุณเพิ่มการเข้าสู่ระบบหรือ API key สำหรับผู้ให้บริการนี้"
+,
+  "No models available right now.": "ขณะนี้ไม่มีโมเดลที่พร้อมใช้งาน"
 }
