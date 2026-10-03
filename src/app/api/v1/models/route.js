@@ -19,6 +19,8 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+// [local] 模型白名单过滤（本机定制）—— 实现见 src/lib/modelWhitelist.js
+import { applyWhitelist } from "@/lib/modelWhitelist";
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -627,7 +629,10 @@ export async function buildModelsList(kindFilter, options = {}) {
     dedupedModels.push(model);
   }
 
-  return dedupedModels;
+  // [local] 模型白名单：白名单为空时原样返回（默认行为不变）。
+  // skipWhitelist 仅给 dashboard 白名单管理页拉「全量可选模型」用。
+  if (options.skipWhitelist === true) return dedupedModels;
+  return applyWhitelist(dedupedModels);
 }
 
 /**
