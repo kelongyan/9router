@@ -21,6 +21,7 @@ import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 // [local] 模型白名单过滤（本机定制）—— 实现见 src/lib/modelWhitelist.js
 import { applyWhitelist } from "@/lib/modelWhitelist";
+import { applyModelAliases } from "@/lib/modelAliases";
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -632,7 +633,10 @@ export async function buildModelsList(kindFilter, options = {}) {
   // [local] 模型白名单：白名单为空时原样返回（默认行为不变）。
   // skipWhitelist 仅给 dashboard 白名单管理页拉「全量可选模型」用。
   if (options.skipWhitelist === true) return dedupedModels;
-  return applyWhitelist(dedupedModels);
+  // [local] 模型别名：白名单过滤后，把设置了别名的真实 id 替换成短别名对外展示。
+  // 注意 applyWhitelist 是 async —— 必须 await，否则传进别名层的是 Promise，
+  // 会被 Array.isArray 检查静默早退（async 返回链展平后表现为"功能正常"）。
+  return applyModelAliases(await applyWhitelist(dedupedModels));
 }
 
 /**
