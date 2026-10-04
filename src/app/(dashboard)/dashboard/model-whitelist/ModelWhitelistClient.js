@@ -25,14 +25,14 @@ function ProviderNav({ groups, activeAlias, selectedOnly, onToggleSelectedOnly, 
       <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-3 py-2.5">
         <span className="material-symbols-outlined text-[16px] text-text-muted">widgets</span>
         <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-          Providers
+          服务商
         </span>
         <span className="ml-auto text-[11px] tabular-nums text-text-muted">{groups.length}</span>
         <button
           type="button"
           onClick={onToggleSelectedOnly}
           aria-pressed={selectedOnly}
-          title="Only providers with selected models"
+          title="只显示有选中模型的服务商"
           className={cn(
             "flex size-6 items-center justify-center rounded-md transition-colors",
             selectedOnly
@@ -46,7 +46,7 @@ function ProviderNav({ groups, activeAlias, selectedOnly, onToggleSelectedOnly, 
       <div className="overflow-y-auto p-1.5">
         {groups.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-text-muted">
-            {selectedOnly ? "No providers with selected models." : "No providers."}
+            {selectedOnly ? "没有已选中模型的服务商。" : "暂无服务商。"}
           </div>
         ) : (
           groups.map((g) => {
@@ -163,14 +163,14 @@ function ModelRow({ id, checked, locked, alias, editing, saving, onToggle, onSta
               if (e.key === "Escape") onCancel();
             }}
             onBlur={(e) => onCommit(e.currentTarget.value)}
-            placeholder="alias, e.g. GLM-5.2"
+            placeholder="别名，如 GLM-5.2"
             className="mt-0.5 h-5 w-full max-w-xs border-b border-brand-500/50 bg-transparent font-mono text-[11px] leading-4 text-brand-500 placeholder-text-muted/60 outline-none"
           />
         ) : alias ? (
           <button
             type="button"
             onClick={onStartEdit}
-            title="Edit alias"
+            title="修改别名"
             className="block max-w-full truncate text-left font-mono text-[11px] leading-4 text-brand-500 hover:underline"
           >
             → {alias}
@@ -181,14 +181,14 @@ function ModelRow({ id, checked, locked, alias, editing, saving, onToggle, onSta
             onClick={onStartEdit}
             className="block text-left font-mono text-[11px] leading-4 text-text-muted opacity-0 transition-opacity hover:text-brand-500 group-hover:opacity-70"
           >
-            + set alias
+            + 起别名
           </button>
         )}
       </div>
       <button
         type="button"
         onClick={() => copy(id)}
-        title="Copy model ID"
+        title="复制模型 ID"
         className="mt-0.5 shrink-0 rounded-md p-0.5 text-text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-brand-500 focus-visible:opacity-100 group-hover:opacity-100"
       >
         <span className="material-symbols-outlined text-[14px]">
@@ -253,7 +253,7 @@ export default function ModelWhitelistClient() {
           setAliases(alData?.aliases && typeof alData.aliases === "object" ? alData.aliases : {});
         }
       } catch (e) {
-        if (alive) flash(`Load failed: ${e.message}`, "err");
+        if (alive) flash(`加载失败：${e.message}`, "err");
       } finally {
         if (alive) setLoading(false);
       }
@@ -307,10 +307,10 @@ export default function ModelWhitelistClient() {
         const data = await res.json();
         if (!res.ok || !data?.success) throw new Error(data?.error || `HTTP ${res.status}`);
         setAliases(data.aliases && typeof data.aliases === "object" ? data.aliases : {});
-        flash(`Alias "${alias}" saved — /v1/models now shows it.`);
+        flash(`别名「${alias}」已保存，/v1/models 对外显示新名字。`);
         return true;
       } catch (e) {
-        flash(`Alias save failed: ${e.message}`, "err");
+        flash(`别名保存失败：${e.message}`, "err");
         return false;
       } finally {
         setAliasSaving(false);
@@ -329,10 +329,10 @@ export default function ModelWhitelistClient() {
         const data = await res.json();
         if (!res.ok || !data?.success) throw new Error(data?.error || `HTTP ${res.status}`);
         setAliases(data.aliases && typeof data.aliases === "object" ? data.aliases : {});
-        flash(`Alias "${alias}" removed.`);
+        flash(`别名「${alias}」已删除。`);
         return true;
       } catch (e) {
-        flash(`Alias remove failed: ${e.message}`, "err");
+        flash(`别名删除失败：${e.message}`, "err");
         return false;
       } finally {
         setAliasSaving(false);
@@ -473,16 +473,16 @@ export default function ModelWhitelistClient() {
       setEntries(ids);
       setSavedEntries(ids);
       removedByWholeRef.current.clear();
-      flash("Saved. /v1/models now follows this whitelist.");
+      flash("已保存，/v1/models 现按此白名单输出。");
     } catch (e) {
-      flash(`Save failed: ${e.message}`, "err");
+      flash(`保存失败：${e.message}`, "err");
     } finally {
       setSaving(false);
     }
   }, [entries, flash]);
 
   const clearAll = useCallback(async () => {
-    if (!window.confirm("Clear the whitelist? /v1/models will return ALL models again.")) return;
+    if (!window.confirm("确定清空白名单？/v1/models 将恢复返回全部模型。")) return;
     setSaving(true);
     try {
       const res = await fetch("/api/models/whitelist", { method: "DELETE" });
@@ -491,9 +491,9 @@ export default function ModelWhitelistClient() {
       setEntries([]);
       setSavedEntries([]);
       removedByWholeRef.current.clear();
-      flash("Cleared. Filtering is now off.");
+      flash("已清空，过滤已关闭。");
     } catch (e) {
-      flash(`Clear failed: ${e.message}`, "err");
+      flash(`清空失败：${e.message}`, "err");
     } finally {
       setSaving(false);
     }
@@ -519,38 +519,35 @@ export default function ModelWhitelistClient() {
       {/* ── 页头 ──────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold">Model Whitelist</h1>
+          <h1 className="text-xl font-bold">模型白名单</h1>
           <p className="mt-1 max-w-2xl text-sm text-text-muted">
-            Only whitelisted models are returned by <code className="font-mono">/v1/models</code> —
-            on the public URL and on <code className="font-mono">127.0.0.1</code> alike. Leave it
-            empty to turn filtering off.
+            只有白名单内的模型会出现在 <code className="font-mono">/v1/models</code> 的返回中——公网与
+            <code className="font-mono">127.0.0.1</code> 一致。留空表示不过滤。
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="ghost" onClick={clearAll} disabled={saving || isEmpty}>
-            Clear
+            清空
           </Button>
           <Button onClick={save} disabled={saving || !dirty} icon="save">
-            {saving ? "Saving…" : "Save"}
+            {saving ? "保存中…" : "保存"}
           </Button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={isEmpty ? "default" : "success"} dot>
-          {isEmpty ? "Filtering off" : "Filtering on"}
+          {isEmpty ? "过滤未开启" : "过滤已开启"}
         </Badge>
-        {dirty && <Badge variant="warning">Unsaved changes</Badge>}
+        {dirty && <Badge variant="warning">有未保存的修改</Badge>}
         <span className="text-xs text-text-muted">
           <span className="font-semibold tabular-nums text-text-main">{selectedModelCount}</span>{" "}
-          of <span className="tabular-nums">{available.length}</span> models selected ·{" "}
-          <span className="tabular-nums">{entries.length}</span> whitelist entr
-          {entries.length === 1 ? "y" : "ies"}
+          / <span className="tabular-nums">{available.length}</span> 个模型已选 · 白名单{" "}
+          <span className="tabular-nums">{entries.length}</span> 条
           {Object.keys(aliases).length > 0 && (
             <>
               {" · "}
-              <span className="tabular-nums">{Object.keys(aliases).length}</span> alias
-              {Object.keys(aliases).length === 1 ? "" : "es"}
+              <span className="tabular-nums">{Object.keys(aliases).length}</span> 个别名
             </>
           )}
         </span>
@@ -585,8 +582,8 @@ export default function ModelWhitelistClient() {
         {!activeGroup ? (
           <Card className="p-10 text-center text-sm text-text-muted">
             {available.length === 0
-              ? "No models available."
-              : "No providers match the current filters."}
+              ? "暂无可用模型。"
+              : "当前过滤条件下没有服务商。"}
           </Card>
         ) : (
           <Card padding="none" className="overflow-hidden">
@@ -616,16 +613,16 @@ export default function ModelWhitelistClient() {
                   disabled={whole}
                   className="text-[11px] font-medium text-text-muted transition-colors hover:text-brand-500 disabled:opacity-40"
                 >
-                  Select all
+                  全选
                 </button>
                 <button
                   type="button"
                   onClick={() => clearGroup(activeGroup.alias, activeGroup.ids)}
                   className="text-[11px] font-medium text-text-muted transition-colors hover:text-brand-500"
                 >
-                  Clear
+                  清空
                 </button>
-                <div title="Whole provider (uses alias/*)">
+                <div title="整组开启（写入 alias/*）">
                   <Toggle
                     size="sm"
                     checked={whole}
@@ -635,8 +632,7 @@ export default function ModelWhitelistClient() {
               </div>
               {filtering && (
                 <span className="w-full text-[11px] tabular-nums text-text-muted">
-                  {groups.matched} matching model{groups.matched === 1 ? "" : "s"} across{" "}
-                  {groups.list.length} provider{groups.list.length === 1 ? "" : "s"}
+                  {groups.matched} 个匹配模型 · 跨 {groups.list.length} 个服务商
                 </span>
               )}
               {activeGroup.selectedCount > 0 && (
@@ -656,7 +652,7 @@ export default function ModelWhitelistClient() {
             {whole && (
               <div className="flex items-center gap-1 border-t border-border-subtle px-4 py-1.5 text-[11px] font-medium text-brand-500">
                 <span className="material-symbols-outlined text-[13px]">done_all</span>
-                whole provider —{" "}
+                整组已开启 —{" "}
                 <code className="font-mono">{`${activeGroup.alias}${WILDCARD_SUFFIX}`}</code>
               </div>
             )}
@@ -669,14 +665,14 @@ export default function ModelWhitelistClient() {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={`Search in ${activeGroup.alias}…`}
+                  placeholder={`在 ${activeGroup.alias} 内搜索…`}
                   className="h-9 w-full rounded-[10px] border border-transparent bg-surface-2 pl-10 pr-3 text-sm text-text-main placeholder-text-muted/70 outline-none transition-all focus:border-brand-500/40 focus:ring-2 focus:ring-brand-500/30"
                 />
               </div>
               <div className="max-h-[58vh] overflow-y-auto">
                 {activeGroup.ids.length === 0 ? (
                   <div className="px-2 py-8 text-center text-sm text-text-muted">
-                    No models match this search in {activeGroup.alias}.
+                    {activeGroup.alias} 内没有匹配此搜索的模型。
                   </div>
                 ) : (
                   <div className="grid gap-0.5 sm:grid-cols-2">

@@ -17,7 +17,7 @@ export const HIDDEN_NAV = [];
 // itself goes in src/app/(dashboard)/dashboard/<module>/.
 export const EXTRA_NAV = [
   { href: "/dashboard/free-models", label: "Free Models", icon: "bolt" },
-  { href: "/dashboard/model-whitelist", label: "Model Whitelist", icon: "checklist" },
+  { href: "/dashboard/model-whitelist", label: "模型白名单", icon: "checklist" },
 ];
 
 // Apply HIDDEN_NAV + EXTRA_NAV to a sidebar nav item list. Pure, so it is safe to
