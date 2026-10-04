@@ -15,120 +15,91 @@ function aliasOf(modelId) {
   return i > 0 ? modelId.slice(0, i) : "";
 }
 
-// ── Provider 下拉框 ────────────────────────────────────────────
-function ProviderDropdown({ activeGroup, groups, selectedOnly, onOpenChange, onSelect }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const list = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return groups.filter((g) => {
-      if (selectedOnly && g.selectedCount === 0) return false;
-      if (q && !g.alias.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [groups, selectedOnly, query]);
-
-  const close = useCallback(() => {
-    setOpen(false);
-    setQuery("");
-    onOpenChange?.(false);
-  }, [onOpenChange]);
-
+// ── 左栏：provider 导航（常驻，状态一眼可扫）────────────────────
+function ProviderNav({ groups, activeAlias, selectedOnly, onToggleSelectedOnly, onSelect }) {
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-9 min-w-56 max-w-xs items-center gap-2.5 rounded-[10px] border border-transparent bg-surface-2 px-3 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40"
-      >
-        {activeGroup ? (
-          <>
-            <ProviderIcon
-              providerId={activeGroup.alias}
-              size={20}
-              className="shrink-0 rounded-md object-contain"
-              fallbackText={activeGroup.alias.slice(0, 2).toUpperCase()}
-            />
-            <span className="min-w-0 flex-1 truncate text-left font-semibold">{activeGroup.alias}</span>
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-2 py-0.5 text-[11px] tabular-nums",
-                activeGroup.selectedCount === activeGroup.ids.length && activeGroup.ids.length > 0
-                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                  : "bg-surface-3 text-text-muted"
-              )}
-            >
-              {activeGroup.selectedCount}/{activeGroup.ids.length}
-            </span>
-          </>
-        ) : (
-          <span className="flex-1 text-left text-text-muted">Select a provider…</span>
-        )}
-        <span className="material-symbols-outlined shrink-0 text-[18px] text-text-muted">
-          {open ? "expand_less" : "expand_more"}
+    <Card
+      padding="none"
+      className="flex max-h-[calc(100vh-11rem)] flex-col overflow-hidden lg:sticky lg:top-4"
+    >
+      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-3 py-2.5">
+        <span className="material-symbols-outlined text-[16px] text-text-muted">widgets</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+          Providers
         </span>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={close} />
-          <div className="absolute z-50 mt-1.5 w-72 overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-[var(--shadow-elev)]">
-            <div className="border-b border-border-subtle p-2">
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search provider…"
-                className="h-8 w-full rounded-lg border border-transparent bg-surface-2 px-2.5 text-xs text-text-main placeholder-text-muted/70 outline-none transition-all focus:border-brand-500/40 focus:ring-2 focus:ring-brand-500/30"
-              />
-            </div>
-            <div className="max-h-72 overflow-y-auto py-1">
-              {list.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-text-muted">
-                  {selectedOnly ? "No providers with selected models." : "No providers match."}
-                </div>
-              ) : (
-                list.map((g) => (
-                  <button
-                    key={g.alias}
-                    type="button"
-                    onClick={() => {
-                      onSelect(g.alias);
-                      close();
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition-colors hover:bg-surface-2/60",
-                      activeGroup?.alias === g.alias && "bg-brand-500/[0.08]"
-                    )}
-                  >
-                    <ProviderIcon
-                      providerId={g.alias}
-                      size={22}
-                      className="shrink-0 rounded-md object-contain"
-                      fallbackText={g.alias.slice(0, 2).toUpperCase()}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm">{g.alias}</span>
-                    {g.selectedCount > 0 && <span className="size-1.5 shrink-0 rounded-full bg-green-500" />}
-                    <span className="shrink-0 text-[11px] tabular-nums text-text-muted">
-                      {g.selectedCount}/{g.ids.length}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
+        <span className="ml-auto text-[11px] tabular-nums text-text-muted">{groups.length}</span>
+        <button
+          type="button"
+          onClick={onToggleSelectedOnly}
+          aria-pressed={selectedOnly}
+          title="Only providers with selected models"
+          className={cn(
+            "flex size-6 items-center justify-center rounded-md transition-colors",
+            selectedOnly
+              ? "bg-brand-500/10 text-brand-500"
+              : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+          )}
+        >
+          <span className="material-symbols-outlined text-[16px]">filter_alt</span>
+        </button>
+      </div>
+      <div className="overflow-y-auto p-1.5">
+        {groups.length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-text-muted">
+            {selectedOnly ? "No providers with selected models." : "No providers."}
           </div>
-        </>
-      )}
-    </div>
+        ) : (
+          groups.map((g) => {
+            const active = g.alias === activeAlias;
+            const full = g.selectedCount === g.ids.length && g.ids.length > 0;
+            return (
+              <button
+                key={g.alias}
+                type="button"
+                onClick={() => onSelect(g.alias)}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+                  active
+                    ? "bg-brand-500/[0.08] shadow-[inset_2px_0_0_0_var(--color-primary)]"
+                    : "hover:bg-surface-2/60"
+                )}
+              >
+                <ProviderIcon
+                  providerId={g.alias}
+                  size={20}
+                  className="shrink-0 rounded-md object-contain"
+                  fallbackText={g.alias.slice(0, 2).toUpperCase()}
+                />
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-sm",
+                    active ? "font-semibold text-text-main" : "text-text-main/90"
+                  )}
+                >
+                  {g.alias}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
+                    full
+                      ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                      : g.selectedCount > 0
+                        ? "bg-brand-500/10 text-brand-500"
+                        : "text-text-muted"
+                  )}
+                >
+                  {g.selectedCount}/{g.ids.length}
+                </span>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </Card>
   );
 }
 
-ProviderDropdown.propTypes = {
-  activeGroup: PropTypes.shape({
-    alias: PropTypes.string.isRequired,
-    ids: PropTypes.arrayOf(PropTypes.string).isRequired,
-    selectedCount: PropTypes.number.isRequired,
-  }),
+ProviderNav.propTypes = {
   groups: PropTypes.arrayOf(
     PropTypes.shape({
       alias: PropTypes.string.isRequired,
@@ -136,28 +107,24 @@ ProviderDropdown.propTypes = {
       selectedCount: PropTypes.number.isRequired,
     })
   ).isRequired,
+  activeAlias: PropTypes.string,
   selectedOnly: PropTypes.bool.isRequired,
-  onOpenChange: PropTypes.func,
+  onToggleSelectedOnly: PropTypes.func.isRequired,
   onSelect: PropTypes.func.isRequired,
 };
 
-// ── 模型行：checkbox 勾选白名单归属；点击行主体弹二级子菜单 ─────
-function ModelRow({ id, checked, locked, alias, onToggle, onOpenMenu }) {
+// ── 右栏模型行：勾选白名单 + 行内别名编辑（无浮层，Enter/失焦保存）──
+function ModelRow({ id, checked, locked, alias, editing, saving, onToggle, onStartEdit, onCommit, onCancel }) {
+  const { copy, copied } = useCopyToClipboard();
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={(e) => onOpenMenu(e)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onOpenMenu(e);
-      }}
       className={cn(
-        "group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors",
+        "group flex items-start gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors",
         checked ? "bg-brand-500/[0.08]" : "hover:bg-surface-2/60",
         locked && "opacity-70"
       )}
     >
-      <label className="flex shrink-0 cursor-pointer items-center" onClick={(e) => e.stopPropagation()}>
+      <label className="mt-0.5 flex shrink-0 cursor-pointer items-center">
         <input
           type="checkbox"
           className="peer sr-only"
@@ -168,9 +135,7 @@ function ModelRow({ id, checked, locked, alias, onToggle, onOpenMenu }) {
         <span
           className={cn(
             "flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors",
-            checked
-              ? "border-brand-500 bg-brand-500"
-              : "border-surface-3 group-hover:border-brand-500/60",
+            checked ? "border-brand-500 bg-brand-500" : "border-surface-3 group-hover:border-brand-500/60",
             "peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/30"
           )}
         >
@@ -184,19 +149,52 @@ function ModelRow({ id, checked, locked, alias, onToggle, onOpenMenu }) {
           </span>
         </span>
       </label>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-xs" title={id}>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-mono text-xs leading-4" title={id}>
           {id}
-        </span>
-        {alias && (
-          <span className="block truncate font-mono text-[10px] text-brand-500" title={alias}>
+        </div>
+        {editing ? (
+          <input
+            autoFocus
+            defaultValue={alias}
+            disabled={saving}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onCommit(e.currentTarget.value);
+              if (e.key === "Escape") onCancel();
+            }}
+            onBlur={(e) => onCommit(e.currentTarget.value)}
+            placeholder="alias, e.g. GLM-5.2"
+            className="mt-0.5 h-5 w-full max-w-xs border-b border-brand-500/50 bg-transparent font-mono text-[11px] leading-4 text-brand-500 placeholder-text-muted/60 outline-none"
+          />
+        ) : alias ? (
+          <button
+            type="button"
+            onClick={onStartEdit}
+            title="Edit alias"
+            className="block max-w-full truncate text-left font-mono text-[11px] leading-4 text-brand-500 hover:underline"
+          >
             → {alias}
-          </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onStartEdit}
+            className="block text-left font-mono text-[11px] leading-4 text-text-muted opacity-0 transition-opacity hover:text-brand-500 group-hover:opacity-70"
+          >
+            + set alias
+          </button>
         )}
-      </span>
-      <span className="material-symbols-outlined shrink-0 text-[15px] text-text-muted opacity-0 transition-opacity group-hover:opacity-100">
-        more_vert
-      </span>
+      </div>
+      <button
+        type="button"
+        onClick={() => copy(id)}
+        title="Copy model ID"
+        className="mt-0.5 shrink-0 rounded-md p-0.5 text-text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-brand-500 focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        <span className="material-symbols-outlined text-[14px]">
+          {copied ? "check" : "content_copy"}
+        </span>
+      </button>
     </div>
   );
 }
@@ -206,132 +204,12 @@ ModelRow.propTypes = {
   checked: PropTypes.bool.isRequired,
   locked: PropTypes.bool.isRequired,
   alias: PropTypes.string,
-  onToggle: PropTypes.func.isRequired,
-  onOpenMenu: PropTypes.func.isRequired,
-};
-
-// ── 二级子菜单：别名编辑（紧凑态）──────────────────────────────
-function MenuAliasEditor({ id, initial, saving, onCommit, onRemove, onCancel }) {
-  const [draft, setDraft] = useState(initial);
-  return (
-    <div className="px-2.5 py-1.5">
-      <div className="truncate font-mono text-[10px] text-text-muted" title={id}>
-        {id}
-      </div>
-      <input
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") onCommit(draft);
-          if (e.key === "Escape") onCancel();
-        }}
-        placeholder="alias, e.g. GLM-5.2"
-        className="mt-1.5 h-8 w-full rounded-lg border border-transparent bg-surface-2 px-2.5 font-mono text-xs text-text-main placeholder-text-muted/70 outline-none transition-all focus:border-brand-500/40 focus:ring-2 focus:ring-brand-500/30"
-      />
-      <div className="mt-1.5 flex items-center gap-1.5">
-        <Button size="sm" onClick={() => onCommit(draft)} disabled={saving} icon="check">
-          Save
-        </Button>
-        {initial && (
-          <Button variant="ghost" size="sm" onClick={onRemove} disabled={saving} icon="delete">
-            Remove
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
-          Cancel
-        </Button>
-      </div>
-      <p className="mt-1 text-[10px] leading-tight text-text-muted">
-        letters/digits/.-_ only, no slash
-      </p>
-    </div>
-  );
-}
-
-MenuAliasEditor.propTypes = {
-  id: PropTypes.string.isRequired,
-  initial: PropTypes.string,
-  saving: PropTypes.bool.isRequired,
-  onCommit: PropTypes.func.isRequired,
-  onRemove: PropTypes.func.isRequired,
-  onCancel: PropTypes.func.isRequired,
-};
-
-function MenuItem({ icon, label, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs text-text-main transition-colors hover:bg-surface-2/60"
-    >
-      <span className="material-symbols-outlined text-[15px] text-text-muted">{icon}</span>
-      {label}
-    </button>
-  );
-}
-
-MenuItem.propTypes = {
-  icon: PropTypes.string.isRequired,
-  label: PropTypes.string.isRequired,
-  onClick: PropTypes.func.isRequired,
-};
-
-// ── 二级子菜单浮层 ─────────────────────────────────────────────
-function RowMenu({ menu, alias, editing, saving, copied, onSetAlias, onRemoveAlias, onCopy, onCommit, onCancel, onClose }) {
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div
-        className="fixed z-50 w-60 rounded-xl border border-border-subtle bg-surface py-1.5 shadow-[var(--shadow-elev)]"
-        style={{ left: menu.x, top: menu.y }}
-      >
-        {editing ? (
-          <MenuAliasEditor
-            id={menu.id}
-            initial={alias || ""}
-            saving={saving}
-            onCommit={onCommit}
-            onRemove={onRemoveAlias}
-            onCancel={onCancel}
-          />
-        ) : (
-          <>
-            <div className="border-b border-border-subtle px-2.5 pb-1.5 pt-0.5">
-              <div className="truncate font-mono text-[11px]" title={menu.id}>
-                {menu.id}
-              </div>
-              {alias && (
-                <div className="mt-0.5 truncate font-mono text-[11px] text-brand-500" title={alias}>
-                  → {alias}
-                </div>
-              )}
-            </div>
-            <div className="pt-1">
-              <MenuItem icon="sell" label={alias ? "Edit alias" : "Set alias…"} onClick={onSetAlias} />
-              {alias && <MenuItem icon="delete" label="Remove alias" onClick={onRemoveAlias} />}
-              <MenuItem icon="content_copy" label={copied ? "Copied!" : "Copy model ID"} onClick={onCopy} />
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  );
-}
-
-RowMenu.propTypes = {
-  menu: PropTypes.shape({ id: PropTypes.string.isRequired, x: PropTypes.number.isRequired, y: PropTypes.number.isRequired })
-    .isRequired,
-  alias: PropTypes.string,
   editing: PropTypes.bool.isRequired,
   saving: PropTypes.bool.isRequired,
-  copied: PropTypes.bool,
-  onSetAlias: PropTypes.func.isRequired,
-  onRemoveAlias: PropTypes.func.isRequired,
-  onCopy: PropTypes.func.isRequired,
+  onToggle: PropTypes.func.isRequired,
+  onStartEdit: PropTypes.func.isRequired,
   onCommit: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
-  onClose: PropTypes.func.isRequired,
 };
 
 export default function ModelWhitelistClient() {
@@ -345,12 +223,8 @@ export default function ModelWhitelistClient() {
   const [notice, setNotice] = useState(null);
   const [aliases, setAliases] = useState({});
   const [aliasSaving, setAliasSaving] = useState(false);
-  // provider 下拉当前选中；模型行的二级子菜单（定位到点击处）
-  const [activeProvider, setActiveProvider] = useState("");
-  const [rowMenu, setRowMenu] = useState(null);
-  const [menuAliasEditing, setMenuAliasEditing] = useState(false);
-  const { copy, copied } = useCopyToClipboard();
-  // 整组开关启用时被清掉的精确 id（alias → ids[]），关闭时恢复，避免 on→off 一圈悄悄丢选择
+  const [editingAliasId, setEditingAliasId] = useState(null);
+  // 记录启用整组时被清掉的精确 id（alias → ids[]），关闭时恢复，避免 on→off 一圈悄悄丢选择
   const removedByWholeRef = useRef(new Map());
 
   const flash = useCallback((text, tone = "ok") => {
@@ -410,7 +284,7 @@ export default function ModelWhitelistClient() {
     [exactSet, wildcardSet]
   );
 
-  // ── 模型别名（target → alias），对外展示与搜索都用它 ────────────
+  // ── 模型别名（target → alias）─────────────────────────────────
   const displayAliasById = useMemo(() => {
     const map = new Map();
     for (const [alias, target] of Object.entries(aliases)) {
@@ -471,20 +345,13 @@ export default function ModelWhitelistClient() {
     async (realId, draft) => {
       const name = (draft || "").trim();
       const current = displayAliasById.get(realId) || "";
+      setEditingAliasId(null);
       if (!name) {
-        if (current) {
-          const ok = await removeAlias(current);
-          if (!ok) return;
-        }
-        setMenuAliasEditing(false);
+        if (current) await removeAlias(current);
         return;
       }
-      if (name === current) {
-        setMenuAliasEditing(false);
-        return;
-      }
-      const ok = await saveAlias(name, realId);
-      if (ok) setMenuAliasEditing(false);
+      if (name === current) return;
+      await saveAlias(name, realId);
     },
     [displayAliasById, removeAlias, saveAlias]
   );
@@ -533,7 +400,8 @@ export default function ModelWhitelistClient() {
   const filtering = searching || selectedOnly;
 
   // 当前选中的 provider 分组；activeProvider 失效（过滤后消失/初始为空）时
-  // 派生兜底：优先有选中的，否则字母序第一个 —— 不写 effect，免 set-state-in-effect
+  // 派生兜底：优先有选中的，否则字母序第一个 —— 派生而非 effect
+  const [activeProvider, setActiveProvider] = useState("");
   const activeGroup = useMemo(
     () =>
       groups.list.find((g) => g.alias === activeProvider) ||
@@ -644,9 +512,10 @@ export default function ModelWhitelistClient() {
 
   const isEmpty = entries.length === 0;
   const whole = activeGroup ? wildcardSet.has(activeGroup.alias) : false;
+  const full = activeGroup && activeGroup.selectedCount === activeGroup.ids.length && activeGroup.ids.length > 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* ── 页头 ──────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -700,174 +569,139 @@ export default function ModelWhitelistClient() {
         </div>
       )}
 
-      {/* ── 工具栏：provider 下拉 / 只看已选 / 搜索 ───────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <ProviderDropdown
-          activeGroup={activeGroup}
+      {/* ── 双栏：左 provider 导航 / 右工作区 ─────────────────── */}
+      <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <ProviderNav
           groups={groups.list}
+          activeAlias={activeGroup?.alias}
           selectedOnly={selectedOnly}
-          onSelect={setActiveProvider}
+          onToggleSelectedOnly={() => setSelectedOnly((v) => !v)}
+          onSelect={(alias) => {
+            setActiveProvider(alias);
+            setEditingAliasId(null);
+          }}
         />
-        <button
-          type="button"
-          onClick={() => setSelectedOnly((v) => !v)}
-          aria-pressed={selectedOnly}
-          className={cn(
-            "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border px-3 text-xs font-medium transition-colors",
-            selectedOnly
-              ? "border-brand-500/50 bg-brand-500/10 text-brand-500"
-              : "border-border-subtle text-text-muted hover:bg-surface-2 hover:text-text-main"
-          )}
-        >
-          <span className="material-symbols-outlined text-[16px]">filter_alt</span>
-          Selected only
-        </button>
-        <div className="relative min-w-0 flex-1 sm:max-w-xs sm:ml-auto">
-          <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-text-muted">
-            search
-          </span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search in this provider…"
-            className="h-9 w-full rounded-[10px] border border-transparent bg-surface-2 pl-10 pr-3 text-sm text-text-main placeholder-text-muted/70 outline-none transition-all focus:border-brand-500/40 focus:ring-2 focus:ring-brand-500/30"
-          />
-        </div>
-      </div>
-      {filtering && (
-        <div className="-mt-3 text-xs tabular-nums text-text-muted">
-          {groups.matched} matching model{groups.matched === 1 ? "" : "s"} across{" "}
-          {groups.list.length} provider{groups.list.length === 1 ? "" : "s"}
-        </div>
-      )}
 
-      {/* ── 选中 provider 的模型卡片 ──────────────────────────── */}
-      {!activeGroup ? (
-        <Card className="p-10 text-center text-sm text-text-muted">
-          {available.length === 0
-            ? "No models available."
-            : searching || selectedOnly
-              ? "No providers match the current filters."
-              : "Select a provider to manage its models."}
-        </Card>
-      ) : (
-        <Card padding="none" className="overflow-hidden">
-          <div className="relative flex w-full items-center gap-3 px-4 py-2.5">
-            <ProviderIcon
-              providerId={activeGroup.alias}
-              size={26}
-              className="shrink-0 rounded-md object-contain"
-              fallbackText={activeGroup.alias.slice(0, 2).toUpperCase()}
-            />
-            <span className="truncate font-semibold">{activeGroup.alias}</span>
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-2 py-0.5 text-[11px] tabular-nums",
-                activeGroup.selectedCount > 0 && activeGroup.selectedCount === activeGroup.ids.length
-                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                  : "bg-surface-2 text-text-muted"
+        {!activeGroup ? (
+          <Card className="p-10 text-center text-sm text-text-muted">
+            {available.length === 0
+              ? "No models available."
+              : "No providers match the current filters."}
+          </Card>
+        ) : (
+          <Card padding="none" className="overflow-hidden">
+            {/* 工作区头：provider 身份 + 计数 + 操作 + 搜索 */}
+            <div className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+              <ProviderIcon
+                providerId={activeGroup.alias}
+                size={26}
+                className="shrink-0 rounded-md object-contain"
+                fallbackText={activeGroup.alias.slice(0, 2).toUpperCase()}
+              />
+              <span className="truncate font-semibold">{activeGroup.alias}</span>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 text-[11px] tabular-nums",
+                  full
+                    ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                    : "bg-surface-2 text-text-muted"
+                )}
+              >
+                {activeGroup.selectedCount}/{activeGroup.ids.length}
+              </span>
+              <div className="ml-auto flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => selectAllInGroup(activeGroup.alias, activeGroup.ids)}
+                  disabled={whole}
+                  className="text-[11px] font-medium text-text-muted transition-colors hover:text-brand-500 disabled:opacity-40"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clearGroup(activeGroup.alias, activeGroup.ids)}
+                  className="text-[11px] font-medium text-text-muted transition-colors hover:text-brand-500"
+                >
+                  Clear
+                </button>
+                <div title="Whole provider (uses alias/*)">
+                  <Toggle
+                    size="sm"
+                    checked={whole}
+                    onChange={() => toggleWholeGroup(activeGroup.alias, activeGroup.ids)}
+                  />
+                </div>
+              </div>
+              {filtering && (
+                <span className="w-full text-[11px] tabular-nums text-text-muted">
+                  {groups.matched} matching model{groups.matched === 1 ? "" : "s"} across{" "}
+                  {groups.list.length} provider{groups.list.length === 1 ? "" : "s"}
+                </span>
               )}
-            >
-              {activeGroup.selectedCount}/{activeGroup.ids.length}
-            </span>
-            <div className="ml-auto flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => selectAllInGroup(activeGroup.alias, activeGroup.ids)}
-                disabled={whole}
-                className="text-[11px] font-medium text-text-muted transition-colors hover:text-brand-500 disabled:opacity-40"
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                onClick={() => clearGroup(activeGroup.alias, activeGroup.ids)}
-                className="text-[11px] font-medium text-text-muted transition-colors hover:text-brand-500"
-              >
-                Clear
-              </button>
-              <div title="Whole provider (uses alias/*)">
-                <Toggle
-                  size="sm"
-                  checked={whole}
-                  onChange={() => toggleWholeGroup(activeGroup.alias, activeGroup.ids)}
+              {activeGroup.selectedCount > 0 && (
+                <div
+                  className={cn(
+                    "absolute bottom-0 left-0 h-[2px] transition-all duration-300",
+                    full ? "bg-green-500" : "bg-brand-500"
+                  )}
+                  style={{
+                    width: `${Math.round(
+                      (activeGroup.selectedCount / activeGroup.ids.length) * 100
+                    )}%`,
+                  }}
+                />
+              )}
+            </div>
+            {whole && (
+              <div className="flex items-center gap-1 border-t border-border-subtle px-4 py-1.5 text-[11px] font-medium text-brand-500">
+                <span className="material-symbols-outlined text-[13px]">done_all</span>
+                whole provider —{" "}
+                <code className="font-mono">{`${activeGroup.alias}${WILDCARD_SUFFIX}`}</code>
+              </div>
+            )}
+            {/* 搜索 + 模型列表（限高滚动，头卡常驻） */}
+            <div className="border-t border-border-subtle p-3">
+              <div className="relative mb-2">
+                <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-text-muted">
+                  search
+                </span>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={`Search in ${activeGroup.alias}…`}
+                  className="h-9 w-full rounded-[10px] border border-transparent bg-surface-2 pl-10 pr-3 text-sm text-text-main placeholder-text-muted/70 outline-none transition-all focus:border-brand-500/40 focus:ring-2 focus:ring-brand-500/30"
                 />
               </div>
-            </div>
-            {activeGroup.selectedCount > 0 && (
-              <div
-                className={cn(
-                  "absolute bottom-0 left-0 h-[2px] transition-all duration-300",
-                  activeGroup.selectedCount === activeGroup.ids.length ? "bg-green-500" : "bg-brand-500"
+              <div className="max-h-[58vh] overflow-y-auto">
+                {activeGroup.ids.length === 0 ? (
+                  <div className="px-2 py-8 text-center text-sm text-text-muted">
+                    No models match this search in {activeGroup.alias}.
+                  </div>
+                ) : (
+                  <div className="grid gap-0.5 sm:grid-cols-2">
+                    {activeGroup.ids.map((id) => (
+                      <ModelRow
+                        key={id}
+                        id={id}
+                        checked={isSelected(id)}
+                        locked={whole}
+                        alias={displayAliasById.get(id) || ""}
+                        editing={editingAliasId === id}
+                        saving={aliasSaving}
+                        onToggle={toggleModel}
+                        onStartEdit={() => setEditingAliasId(id)}
+                        onCommit={(draft) => commitAlias(id, draft)}
+                        onCancel={() => setEditingAliasId(null)}
+                      />
+                    ))}
+                  </div>
                 )}
-                style={{
-                  width: `${Math.round((activeGroup.selectedCount / activeGroup.ids.length) * 100)}%`,
-                }}
-              />
-            )}
-          </div>
-          {whole && (
-            <div className="flex items-center gap-1 border-t border-border-subtle px-4 py-1.5 text-[11px] font-medium text-brand-500">
-              <span className="material-symbols-outlined text-[13px]">done_all</span>
-              whole provider —{" "}
-              <code className="font-mono">{`${activeGroup.alias}${WILDCARD_SUFFIX}`}</code>
+              </div>
             </div>
-          )}
-          <div className={cn("border-t border-border-subtle p-2", whole && "opacity-80")}>
-            {activeGroup.ids.length === 0 ? (
-              <div className="px-2 py-6 text-center text-sm text-text-muted">
-                No models match this search in {activeGroup.alias}.
-              </div>
-            ) : (
-              <div className="grid gap-0.5 sm:grid-cols-2">
-                {activeGroup.ids.map((id) => (
-                  <ModelRow
-                    key={id}
-                    id={id}
-                    checked={isSelected(id)}
-                    locked={whole}
-                    alias={displayAliasById.get(id) || ""}
-                    onToggle={toggleModel}
-                    onOpenMenu={(e) => {
-                      const x = Math.min(e.clientX, window.innerWidth - 260);
-                      const y = Math.min(e.clientY, window.innerHeight - 220);
-                      setRowMenu({ id, x: Math.max(8, x), y: Math.max(8, y) });
-                      setMenuAliasEditing(false);
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* ── 模型行的二级子菜单 ────────────────────────────────── */}
-      {rowMenu && (
-        <RowMenu
-          menu={rowMenu}
-          alias={displayAliasById.get(rowMenu.id) || ""}
-          editing={menuAliasEditing}
-          saving={aliasSaving}
-          copied={copied}
-          onSetAlias={() => setMenuAliasEditing(true)}
-          onRemoveAlias={() => {
-            const current = displayAliasById.get(rowMenu.id);
-            if (current) removeAlias(current);
-            setRowMenu(null);
-          }}
-          onCopy={() => {
-            copy(rowMenu.id);
-            setRowMenu(null);
-          }}
-          onCommit={(draft) => commitAlias(rowMenu.id, draft)}
-          onCancel={() => setMenuAliasEditing(false)}
-          onClose={() => {
-            setRowMenu(null);
-            setMenuAliasEditing(false);
-          }}
-        />
-      )}
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
