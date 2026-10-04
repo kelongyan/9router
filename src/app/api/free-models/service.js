@@ -69,7 +69,10 @@ const g = (globalThis.__freeModelsStateV2 ??= {
   lastProbeAt: 0,
   probing: false,
   scheduled: false,
+  pendingNewKeys: new Set(), // candidate keys discovered by a feed refresh, awaiting a targeted probe
 });
+// Dev hot reload reuses the pre-existing state object — default fields added later.
+g.pendingNewKeys ??= new Set();
 
 function providerIsNoAuth(p) {
   return Boolean(p.noAuth || p.transport?.noAuth || p.category === "free");
@@ -147,7 +150,29 @@ async function refreshCandidates() {
       });
     }
 
+    const prevProviders = g.candidates?.providers;
     g.candidates = { at: Date.now(), providers: groups };
+
+    // The board lists only probe-verified models, so a model that just showed
+    // up in a feed stays invisible until its first probe. Diff the fresh pull
+    // against the previous one and probe newcomers right away instead of
+    // waiting up to PROBE_INTERVAL_MS. The first pull never triggers (no
+    // baseline to diff against) — the boot scheduler owns that round. A
+    // provider whose feed flaked off and came back re-probes its whole lane,
+    // which is the wanted self-healing after an uncertain window.
+    if (prevProviders) {
+      const prevKeys = new Set(
+        prevProviders.flatMap((grp) => (grp.models || []).map((m) => candidateKey(grp.id, m.id)))
+      );
+      for (const grp of groups) {
+        if (!grp.probeable) continue;
+        for (const m of grp.models) {
+          const key = candidateKey(grp.id, m.id);
+          if (!prevKeys.has(key)) g.pendingNewKeys.add(key);
+        }
+      }
+      flushPendingNewKeys();
+    }
   } finally {
     refreshInFlight = null;
   }
@@ -302,10 +327,19 @@ async function probeCandidate(group, model) {
 // the board. Hard upstream rejections (region, credits, unknown model) do.
 const TRANSIENT_NETWORK_RE = /(aborted|timeout|connect|fetch failed|socket|econn)/i;
 
-async function runProbe(providerId) {
+async function runProbe(providerId, onlyKeys = null) {
   const groups = await getFreeCandidateGroups({ wait: true });
   const targets = providerId ? groups.filter((grp) => grp.id === providerId) : groups;
-  const results = providerId ? g.results.filter((r) => !r.key.startsWith(`${providerId}::`)) : [];
+  const keyFilter = onlyKeys ? new Set(onlyKeys) : null;
+  // Outcomes for models this round does not touch stay valid.
+  let results;
+  if (keyFilter) {
+    results = g.results.filter((r) => !keyFilter.has(r.key));
+  } else if (providerId) {
+    results = g.results.filter((r) => !r.key.startsWith(`${providerId}::`));
+  } else {
+    results = [];
+  }
   const prevOk = new Map(g.results.filter((r) => r.status === "ok").map((r) => [r.key, r]));
 
   await Promise.all(
@@ -313,9 +347,13 @@ async function runProbe(providerId) {
       // No credentials for this provider — probing would only burn requests.
       // The board shows it as a needs-auth hint card instead of listing models.
       if (!group.probeable) return;
+      const models = keyFilter
+        ? group.models.filter((m) => keyFilter.has(candidateKey(group.id, m.id)))
+        : group.models;
+      if (models.length === 0) return;
       const limit = PROVIDER_PROBE_LIMITS[group.id] ?? PROBE_CONCURRENCY;
       const spacingMs = PROVIDER_PROBE_SPACING_MS[group.id] ?? 0;
-      const queue = [...group.models];
+      const queue = [...models];
       await Promise.all(
         Array.from({ length: Math.min(limit, queue.length) }, async () => {
           for (;;) {
@@ -345,21 +383,47 @@ async function runProbe(providerId) {
     })
   );
 
+  // Everything this round probed is done — drop it from the pending set so the
+  // post-round flush doesn't re-probe it.
+  for (const grp of targets) {
+    if (!grp.probeable) continue;
+    for (const m of grp.models) {
+      const key = candidateKey(grp.id, m.id);
+      if (!keyFilter || keyFilter.has(key)) g.pendingNewKeys.delete(key);
+    }
+  }
+
   g.results = results;
   g.lastProbeAt = Date.now();
 }
 
 /**
+ * Probe candidate keys queued by feed refreshes. Skips while a round is
+ * running — startProbe's post-round hook drains the queue afterwards, which
+ * keeps rounds single-flight and cline's per-account rate limit safe.
+ */
+function flushPendingNewKeys() {
+  if (g.probing || g.pendingNewKeys.size === 0) return;
+  const keys = [...g.pendingNewKeys];
+  g.pendingNewKeys.clear();
+  startProbe(null, keys);
+}
+
+/**
  * Kick off a probe round unless one is already running. Returns immediately.
  * @param {string} [providerId] - limit the round to one provider.
+ * @param {string[]} [onlyKeys] - candidate keys (provider::modelId) to probe;
+ *   used by flushPendingNewKeys so a feed newcomer doesn't re-probe the lane.
  */
-export function startProbe(providerId) {
+export function startProbe(providerId, onlyKeys = null) {
   if (g.probing) return { started: false, probing: true };
   g.probing = true;
-  runProbe(providerId)
+  runProbe(providerId, onlyKeys)
     .catch((e) => console.error("[free-models] probe round failed:", e?.message || e))
     .finally(() => {
       g.probing = false;
+      // Keys discovered mid-round missed this round — drain them now.
+      flushPendingNewKeys();
     });
   return { started: true, probing: true };
 }
