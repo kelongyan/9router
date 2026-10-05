@@ -35,6 +35,24 @@ export async function resolveModelAlias(alias) {
 /**
  * Get full model info (parse or resolve)
  */
+// Map a user-defined provider-node prefix ("anzhiyu", "justwork", …) to its
+// node id. Returns null when the prefix belongs to no node.
+async function resolveNodeProviderId(providerAlias) {
+  const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
+  const matchedOpenAI = openaiNodes.find((node) => node.prefix === providerAlias);
+  if (matchedOpenAI) return matchedOpenAI.id;
+
+  const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
+  const matchedAnthropic = anthropicNodes.find((node) => node.prefix === providerAlias);
+  if (matchedAnthropic) return matchedAnthropic.id;
+
+  const embeddingNodes = await getProviderNodes({ type: "custom-embedding" });
+  const matchedEmbedding = embeddingNodes.find((node) => node.prefix === providerAlias);
+  if (matchedEmbedding) return matchedEmbedding.id;
+
+  return null;
+}
+
 export async function getModelInfo(modelStr) {
   const parsed = parseModel(modelStr);
 
@@ -42,22 +60,9 @@ export async function getModelInfo(modelStr) {
     // Provider-node prefixes are user-defined. They must not override built-in
     // provider ids/aliases such as `cf`, `cloudflare-ai`, `openai`, or `hf`.
     if (!RESERVED_PROVIDER_PREFIXES.has(parsed.providerAlias)) {
-      const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
-      const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedOpenAI) {
-        return { provider: matchedOpenAI.id, model: parsed.model };
-      }
-
-      const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
-      const matchedAnthropic = anthropicNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedAnthropic) {
-        return { provider: matchedAnthropic.id, model: parsed.model };
-      }
-
-      const embeddingNodes = await getProviderNodes({ type: "custom-embedding" });
-      const matchedEmbedding = embeddingNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedEmbedding) {
-        return { provider: matchedEmbedding.id, model: parsed.model };
+      const nodeId = await resolveNodeProviderId(parsed.providerAlias);
+      if (nodeId) {
+        return { provider: nodeId, model: parsed.model };
       }
     }
     return {
@@ -75,7 +80,18 @@ export async function getModelInfo(modelStr) {
     return { provider: null, model: parsed.model };
   }
 
-  return getModelInfoCore(modelStr, getModelAliases);
+  const resolved = await getModelInfoCore(modelStr, getModelAliases);
+  // Alias targets may use provider-node prefixes ("justwork/claude-opus-4-8").
+  // getModelInfoCore only knows registry aliases, so without this mapping the
+  // credentials lookup runs against the raw prefix and fails with
+  // "No active credentials for provider: <prefix>".
+  if (resolved?.provider && !RESERVED_PROVIDER_PREFIXES.has(resolved.provider)) {
+    const nodeId = await resolveNodeProviderId(resolved.provider);
+    if (nodeId) {
+      return { provider: nodeId, model: resolved.model };
+    }
+  }
+  return resolved;
 }
 
 /**
