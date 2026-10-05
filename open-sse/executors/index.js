@@ -26,7 +26,6 @@ import TraeExecutor from "./trae.js";
 import ZedExecutor from "./zed.js";
 import WindsurfExecutor from "./windsurf.js";
 import { DefaultExecutor } from "./default.js";
-import { AnthropicCompatExecutor } from "./anthropic-compat.js";
 import { DevinCliExecutor } from "./devin-cli.js";
 
 const executors = {
@@ -70,10 +69,6 @@ const defaultCache = new Map();
 
 export function getExecutor(provider) {
   if (executors[provider]) return executors[provider];
-  if (provider?.startsWith?.("anthropic-compatible-")) {
-    if (!defaultCache.has(provider)) defaultCache.set(provider, new AnthropicCompatExecutor(provider));
-    return defaultCache.get(provider);
-  }
   if (!defaultCache.has(provider)) defaultCache.set(provider, new DefaultExecutor(provider));
   return defaultCache.get(provider);
 }
