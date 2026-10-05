@@ -35,7 +35,7 @@ export async function resolveModelAlias(alias) {
 /**
  * Get full model info (parse or resolve)
  */
-// Map a user-defined provider-node prefix ("anzhiyu", "justwork", …) to its
+// Map a user-defined provider-node prefix ("anzhiyu", …) to its
 // node id. Returns null when the prefix belongs to no node.
 async function resolveNodeProviderId(providerAlias) {
   const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
@@ -81,7 +81,7 @@ export async function getModelInfo(modelStr) {
   }
 
   const resolved = await getModelInfoCore(modelStr, getModelAliases);
-  // Alias targets may use provider-node prefixes ("justwork/claude-opus-4-8").
+  // Alias targets may use provider-node prefixes ("anzhiyu/gpt-6-astra").
   // getModelInfoCore only knows registry aliases, so without this mapping the
   // credentials lookup runs against the raw prefix and fails with
   // "No active credentials for provider: <prefix>".
