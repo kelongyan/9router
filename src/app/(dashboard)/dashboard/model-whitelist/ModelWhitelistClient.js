@@ -116,6 +116,17 @@ ProviderNav.propTypes = {
 // ── 右栏模型行：勾选白名单 + 行内别名编辑（无浮层，Enter/失焦保存）──
 function ModelRow({ id, checked, locked, alias, editing, saving, onToggle, onStartEdit, onCommit, onCancel }) {
   const { copy, copied } = useCopyToClipboard();
+  // 别名：单击复制、双击编辑。延迟复制给双击判定留窗口，dblclick 到达即取消。
+  const aliasClickTimer = useRef(null);
+  useEffect(() => () => clearTimeout(aliasClickTimer.current), []);
+  const copyAlias = () => {
+    clearTimeout(aliasClickTimer.current);
+    aliasClickTimer.current = setTimeout(() => copy(alias, "alias"), 250);
+  };
+  const editAlias = () => {
+    clearTimeout(aliasClickTimer.current);
+    onStartEdit();
+  };
   return (
     <div
       className={cn(
@@ -169,11 +180,18 @@ function ModelRow({ id, checked, locked, alias, editing, saving, onToggle, onSta
         ) : alias ? (
           <button
             type="button"
-            onClick={onStartEdit}
-            title="修改别名"
-            className="block max-w-full truncate text-left font-mono text-[11px] leading-4 text-brand-500 hover:underline"
+            onClick={copyAlias}
+            onDoubleClick={editAlias}
+            title="单击复制别名 · 双击编辑"
+            className={cn(
+              "flex max-w-full items-center gap-1 text-left font-mono text-[11px] leading-4",
+              copied === "alias" ? "text-green-500" : "text-brand-500 hover:underline"
+            )}
           >
-            → {alias}
+            <span className="material-symbols-outlined shrink-0 text-[12px] leading-4">
+              {copied === "alias" ? "check" : "arrow_forward"}
+            </span>
+            <span className="truncate">{copied === "alias" ? "已复制" : alias}</span>
           </button>
         ) : (
           <button
@@ -187,12 +205,12 @@ function ModelRow({ id, checked, locked, alias, editing, saving, onToggle, onSta
       </div>
       <button
         type="button"
-        onClick={() => copy(id)}
+        onClick={() => copy(id, "id")}
         title="复制模型 ID"
         className="mt-0.5 shrink-0 rounded-md p-0.5 text-text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-brand-500 focus-visible:opacity-100 group-hover:opacity-100"
       >
         <span className="material-symbols-outlined text-[14px]">
-          {copied ? "check" : "content_copy"}
+          {copied === "id" ? "check" : "content_copy"}
         </span>
       </button>
     </div>
