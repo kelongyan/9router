@@ -201,6 +201,87 @@ function inferKindFromUnknownModelId(modelId) {
   return LLM_KIND;
 }
 
+// Dynamic-fetch budgets (ms). The env-proxy stage must stay short: a half-dead
+// local proxy hangs the whole /v1/models response when its stage is the only
+// one. The direct stage gets a longer budget — it is the reliable path once
+// the proxy has been given up. Each stage runs with its own AbortController;
+// sharing one would make the direct retry inherit an already-aborted signal
+// and fail instantly, so the "fallback" never actually runs.
+const COMPAT_PROXY_FETCH_TIMEOUT_MS = 3000;
+const COMPAT_DIRECT_FETCH_TIMEOUT_MS = 8000;
+
+// undici dispatchers are cached per proxy URL (mirrors open-sse/utils/proxyFetch.js).
+// Loaded lazily — undici is only importable server-side.
+let _undici = null;
+const _dispatcherCache = new Map();
+
+async function getDispatcherFor(proxyUrl) {
+  if (!_undici) _undici = await import("undici");
+  const key = proxyUrl || "direct";
+  if (!_dispatcherCache.has(key)) {
+    _dispatcherCache.set(
+      key,
+      proxyUrl ? new _undici.ProxyAgent({ uri: proxyUrl }) : new _undici.Agent(),
+    );
+  }
+  return _dispatcherCache.get(key);
+}
+
+// Env-proxy resolution mirroring open-sse/utils/proxyFetch.js (NO_PROXY aware),
+// kept local so the models route owns its two-stage fetch without depending on
+// the global fetch patch (which would override an explicit dispatcher anyway).
+function resolveEnvProxyFor(targetUrl) {
+  const noProxy = process.env.NO_PROXY || process.env.no_proxy || "";
+  if (noProxy) {
+    let hostname = null;
+    try { hostname = new URL(targetUrl).hostname.toLowerCase(); } catch { return null; }
+    const patterns = noProxy.split(",").map((p) => p.trim().toLowerCase()).filter(Boolean);
+    const bypass = patterns.some((pattern) => {
+      if (pattern === "*") return true;
+      if (pattern.startsWith(".")) return hostname.endsWith(pattern) || hostname === pattern.slice(1);
+      return hostname === pattern || hostname.endsWith(`.${pattern}`);
+    });
+    if (bypass) return null;
+  }
+  let protocol = null;
+  try { protocol = new URL(targetUrl).protocol; } catch { return null; }
+  return protocol === "https:"
+    ? (process.env.HTTPS_PROXY || process.env.https_proxy || process.env.ALL_PROXY || process.env.all_proxy || null)
+    : (process.env.HTTP_PROXY || process.env.http_proxy || process.env.ALL_PROXY || process.env.all_proxy || null);
+}
+
+async function fetchModelListOnce(url, headers, dispatcher, timeoutMs) {
+  if (!_undici) _undici = await import("undici");
+  // Use undici's own fetch, not the possibly-patched global — the global fetch
+  // patch ignores an explicit dispatcher in favor of the env proxy.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await _undici.fetch(url, {
+      method: "GET",
+      headers: { ...headers, [INTERNAL_MODELS_FETCH_HEADER]: "1" },
+      cache: "no-store",
+      signal: controller.signal,
+      dispatcher,
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return parseOpenAIStyleModels(data);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function extractModelIds(rawModels) {
+  return Array.from(
+    new Set(
+      rawModels
+        .map((model) => model?.id || model?.name || model?.model)
+        .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "")
+    )
+  );
+}
+
 async function fetchCompatibleModelIds(connection) {
   if (!connection?.apiKey) return [];
 
@@ -230,29 +311,26 @@ async function fetchCompatibleModelIds(connection) {
     return [];
   }
 
+  // Two fail-open stages: short proxy budget first (matches production env
+  // where HTTP(S)_PROXY points at a local proxy), then a direct retry. When
+  // the proxy is healthy the first stage wins; when it is slow or dead, the
+  // response no longer stalls past the proxy budget.
+  const envProxyUrl = resolveEnvProxyFor(url);
+  if (envProxyUrl) {
+    try {
+      const proxyDispatcher = await getDispatcherFor(envProxyUrl);
+      const models = await fetchModelListOnce(url, headers, proxyDispatcher, COMPAT_PROXY_FETCH_TIMEOUT_MS);
+      if (models.length) return extractModelIds(models);
+    } catch {
+      // fall through to the direct stage — 4xx/empty are not retries, but a
+      // timed-out or refused proxy is, and an empty list from the proxy stage
+      // is also treated as "try direct" (upstream reachable directly).
+    }
+  }
+
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { ...headers, [INTERNAL_MODELS_FETCH_HEADER]: "1" },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) return [];
-
-    const data = await response.json();
-    const rawModels = parseOpenAIStyleModels(data);
-
-    return Array.from(
-      new Set(
-        rawModels
-          .map((model) => model?.id || model?.name || model?.model)
-          .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "")
-      )
-    );
+    const directDispatcher = await getDispatcherFor(null);
+    return extractModelIds(await fetchModelListOnce(url, headers, directDispatcher, COMPAT_DIRECT_FETCH_TIMEOUT_MS));
   } catch {
     return [];
   }
@@ -316,6 +394,14 @@ function comboSeatLimits(combo, combosByName, visiting = new Set()) {
   };
 }
 
+// Export-path result cache for buildModelsList (kindFilter + options as key).
+// Dashboard admin pages (skipWhitelist) always bypass and rebuild — they show
+// the full catalog right after the user edits it. Export paths (/v1, /v1beta)
+// tolerate a short TTL: repeated client refreshes stop re-hitting every
+// upstream each time, which is what made the endpoint hostage to slow proxies.
+const MODELS_LIST_CACHE_TTL_MS = 30_000;
+const _modelsListCache = new Map();
+
 /**
  * Build OpenAI-format models list filtered by service kinds.
  * @param {string[]} kindFilter - List of service kinds to include (e.g. ["llm"], ["webSearch","webFetch"]).
@@ -325,6 +411,15 @@ export async function buildModelsList(kindFilter, options = {}) {
   // 9router instance's fetchCompatibleModelIds — skip dynamic fetch to break
   // cross-instance recursive loops.
   const skipDynamicFetch = options.skipDynamicFetch === true;
+  const cacheKey = JSON.stringify({
+    kindFilter,
+    skipDynamicFetch,
+    skipWhitelist: options.skipWhitelist === true,
+  });
+  if (options.skipWhitelist !== true) {
+    const hit = _modelsListCache.get(cacheKey);
+    if (hit && Date.now() < hit.expiry) return hit.data;
+  }
   let connections = [];
   try {
     connections = await getProviderConnections();
@@ -435,67 +530,99 @@ export async function buildModelsList(kindFilter, options = {}) {
       });
     }
   } else {
-    for (const [providerId, conn] of activeConnectionByProvider.entries()) {
-      if (!providerMatchesKinds(providerId, kindFilter)) continue;
+    const providerEntries = [...activeConnectionByProvider.entries()]
+      .filter(([providerId]) => providerMatchesKinds(providerId, kindFilter));
 
-      const staticAlias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
-      const outputAlias = (
-        conn?.providerSpecificData?.prefix
-        || getProviderAlias(providerId)
-        || staticAlias
-      ).trim();
-      const providerModels = PROVIDER_MODELS[staticAlias] || [];
-      const enabledModels = conn?.providerSpecificData?.enabledModels;
-      const hasExplicitEnabledModels =
-        Array.isArray(enabledModels) && enabledModels.length > 0;
-      const isCompatibleProvider =
-        isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
+    // Parallel: each provider's upstream work (compatible-node dynamic catalog
+    // + live resolver) runs concurrently. The previous serial loop made
+    // /v1/models pay the sum of every slow or timing-out upstream; now it only
+    // pays the slowest one.
+    const providerResults = await Promise.all(
+      providerEntries.map(async ([providerId, conn]) => {
+        const staticAlias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
+        const outputAlias = (
+          conn?.providerSpecificData?.prefix
+          || getProviderAlias(providerId)
+          || staticAlias
+        ).trim();
+        const providerModels = PROVIDER_MODELS[staticAlias] || [];
+        const enabledModels = conn?.providerSpecificData?.enabledModels;
+        const hasExplicitEnabledModels =
+          Array.isArray(enabledModels) && enabledModels.length > 0;
+        const isCompatibleProvider =
+          isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
+
+        let liveModelKindById = new Map();
+        let liveCapabilitiesById = new Map();
+
+        let rawModelIds = hasExplicitEnabledModels
+          ? Array.from(
+              new Set(
+                enabledModels.filter(
+                  (modelId) => typeof modelId === "string" && modelId.trim() !== "",
+                ),
+              ),
+            )
+          : providerModels.map((model) => model.id);
+
+        if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
+          rawModelIds = await fetchCompatibleModelIds(conn);
+        }
+
+        // Config-driven live catalog override (e.g. Kiro returns dynamic
+        // -thinking/-agentic variants per account). On failure, fall back to
+        // whatever rawModelIds already holds.
+        const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
+        if (liveResolver && !hasExplicitEnabledModels) {
+          try {
+            const live = await liveResolver(conn);
+            if (live?.models?.length) {
+              rawModelIds = live.models.map((m) => m.id);
+              liveModelKindById = new Map(
+                live.models
+                  .filter((m) => m?.id)
+                  .map((m) => [m.id, modelKind(m)])
+              );
+              liveCapabilitiesById = new Map(
+                live.models
+                  .filter((m) => m?.id && m.capabilities)
+                  .map((m) => [m.id, m.capabilities])
+              );
+            }
+          } catch (err) {
+            console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
+          }
+        }
+
+        return {
+          providerId,
+          conn,
+          staticAlias,
+          outputAlias,
+          providerModels,
+          rawModelIds,
+          liveModelKindById,
+          liveCapabilitiesById,
+        };
+      }),
+    );
+
+    for (const result of providerResults) {
+      const {
+        providerId,
+        conn,
+        staticAlias,
+        outputAlias,
+        providerModels,
+        rawModelIds,
+        liveModelKindById,
+        liveCapabilitiesById,
+      } = result;
 
       // Build kind lookup for static models so we can filter even when only IDs are exposed
       const staticModelKindById = new Map(
         providerModels.map((m) => [m.id, modelKind(m)])
       );
-      let liveModelKindById = new Map();
-      let liveCapabilitiesById = new Map();
-
-      let rawModelIds = hasExplicitEnabledModels
-        ? Array.from(
-            new Set(
-              enabledModels.filter(
-                (modelId) => typeof modelId === "string" && modelId.trim() !== "",
-              ),
-            ),
-          )
-        : providerModels.map((model) => model.id);
-
-      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
-        rawModelIds = await fetchCompatibleModelIds(conn);
-      }
-
-      // Config-driven live catalog override (e.g. Kiro returns dynamic
-      // -thinking/-agentic variants per account). On failure, fall back to
-      // whatever rawModelIds already holds.
-      const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
-      if (liveResolver && !hasExplicitEnabledModels) {
-        try {
-          const live = await liveResolver(conn);
-          if (live?.models?.length) {
-            rawModelIds = live.models.map((m) => m.id);
-            liveModelKindById = new Map(
-              live.models
-                .filter((m) => m?.id)
-                .map((m) => [m.id, modelKind(m)])
-            );
-            liveCapabilitiesById = new Map(
-              live.models
-                .filter((m) => m?.id && m.capabilities)
-                .map((m) => [m.id, m.capabilities])
-            );
-          }
-        } catch (err) {
-          console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
-        }
-      }
 
       const modelIds = rawModelIds
         .map((modelId) => {
@@ -637,8 +764,21 @@ export async function buildModelsList(kindFilter, options = {}) {
   // [local] 模型别名：白名单过滤后，把设置了别名的真实 id 替换成短别名对外展示。
   // 注意 applyWhitelist 是 async —— 必须 await，否则传进别名层的是 Promise，
   // 会被 Array.isArray 检查静默早退（async 返回链展平后表现为"功能正常"）。
-  return applyModelAliases(await applyWhitelist(dedupedModels));
+  const finalModels = applyModelAliases(await applyWhitelist(dedupedModels));
+  if (options.skipWhitelist !== true) {
+    _modelsListCache.set(cacheKey, {
+      data: finalModels,
+      expiry: Date.now() + MODELS_LIST_CACHE_TTL_MS,
+    });
+  }
+  return finalModels;
 }
+
+// Test-only hook: reset the export-path cache between test cases (mirrors the
+// __test__ export convention used by src/dashboardGuard.js).
+export const __test__ = {
+  clearModelsListCache: () => _modelsListCache.clear(),
+};
 
 /**
  * Handle CORS preflight
